@@ -71,6 +71,10 @@
         .filters { display: grid; grid-template-columns: minmax(220px, 1fr) 190px auto auto; gap: 10px; margin-bottom: 12px; }
         .filters input, .filters select { width: 100%; padding: 11px 12px; color: var(--ink); background: white; border: 1px solid var(--line); border-radius: 4px; font: 14px "Segoe UI", sans-serif; }
         .result-count { align-self: center; color: var(--muted); font: 13px "Segoe UI", sans-serif; }
+        .pagination { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 12px 14px; background: #f1f5f3; border-top: 1px solid var(--line); }
+        .pagination button { padding: 8px 12px; }
+        .pagination button:disabled { opacity: .45; cursor: not-allowed; }
+        .page-label { color: var(--muted); font: 13px "Segoe UI", sans-serif; }
         .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
         table { width: 100%; border-collapse: collapse; min-width: 760px; }
         th, td { padding: 15px 16px; border-bottom: 1px solid var(--line); text-align: left; }
@@ -135,6 +139,9 @@
         const clearSearchButton = document.getElementById("clear-search");
         const resultCount = document.getElementById("result-count");
         let allClients = [];
+        let filteredClients = [];
+        let currentPage = 1;
+        const pageSize = 20;
         let loading = false;
 
         const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
@@ -160,23 +167,30 @@
         }
 
         function renderClients(clientList, message = "Nenhum cliente corresponde aos filtros.") {
+            filteredClients = clientList;
+            const totalPages = Math.max(1, Math.ceil(clientList.length / pageSize));
+            currentPage = Math.min(currentPage, totalPages);
+            const pageStart = (currentPage - 1) * pageSize;
+            const pageClients = clientList.slice(pageStart, pageStart + pageSize);
             resultCount.textContent = clientList.length ? `${clientList.length} de ${allClients.length} cliente(s)` : "";
             if (!clientList.length) { clients.innerHTML = `<div class="empty">${message}</div>`; return; }
-            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Estado</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${clientList.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table>`;
+            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Estado</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
             clients.querySelectorAll("tr[data-client-id]").forEach(row => {
                 row.addEventListener("click", () => loadClient(row.dataset.clientId));
                 row.addEventListener("keydown", event => { if (event.key === "Enter") loadClient(row.dataset.clientId); });
             });
+            clients.querySelector("#previous-page").addEventListener("click", () => { currentPage -= 1; renderClients(filteredClients); });
+            clients.querySelector("#next-page").addEventListener("click", () => { currentPage += 1; renderClients(filteredClients); });
         }
 
         function applyClientFilters() {
             const search = clientSearch.value.trim().toLocaleLowerCase("pt-BR");
-            if (!search) {
+            const selectedStatus = statusFilter.value;
+            if (!search && !selectedStatus) {
                 renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
                 return;
             }
             const normalizedSearch = search.replace(/[^\p{L}\p{N}]/gu, "");
-            const selectedStatus = statusFilter.value;
             const filtered = allClients.filter(client => {
                 const searchable = [client.Cnpj, client.NomeLoja, client.ClienteNome, client.Responsavel, client.Servidor, client.ClienteId].join(" ").toLocaleLowerCase("pt-BR");
                 const normalizedSearchable = searchable.replace(/[^\p{L}\p{N}]/gu, "");
@@ -186,6 +200,7 @@
         }
 
         function submitClientSearch() {
+            currentPage = 1;
             applyClientFilters();
         }
 
@@ -224,7 +239,7 @@
                 if (!Array.isArray(payload.Clientes)) throw new Error("Este servidor ainda nao esta configurado como central multi-cliente.");
                 renderOverview(payload.Resumo);
                 allClients = payload.Clientes;
-                if (clientSearch.value.trim()) applyClientFilters();
+                if (clientSearch.value.trim() || statusFilter.value) applyClientFilters();
                 else renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
                 connectionDot.classList.add("live");
                 connectionText.textContent = `Online | Atualizado ${new Date().toLocaleTimeString("pt-BR")}`;
