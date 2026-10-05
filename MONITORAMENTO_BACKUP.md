@@ -80,6 +80,14 @@ Para evitar preencher esses dados manualmente, copie os arquivos do projeto para
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 -CentralApiUrl "https://monitoramento-backup.onrender.com/api/report" -CentralApiToken "troque-por-um-token"
 ```
 
+Tambem e possivel executar sem parametros para abrir a interface de instalacao:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1
+```
+
+A janela solicita URL, token, CNPJ, nome da loja, responsavel e intervalo. Ao clicar em `Instalar`, ela substitui o `monitorar_backups.config.json`, cria a tarefa agendada e executa o primeiro monitoramento. A opcao `-Interface` abre a janela mesmo quando uma URL ja foi informada.
+
 O instalador gera automaticamente `ClientId` a partir do nome do computador, usa o nome do computador como nome do cliente, detecta `C:\InovaFarma`, `7za.exe` e `DestinoBackup.txt`, cria o `monitorar_backups.config.json` e registra a tarefa `Monitoramento Backup InovaFarma` para executar a cada 30 minutos. Para preencher os dados comerciais durante a instalação, acrescente `-Cnpj`, `-NomeLoja` e `-Responsavel`. Para testar sem registrar a tarefa, acrescente `-NaoCriarTarefa`.
 
 O unico dado necessario no comando e o endereco do servidor central. O token deve ser o mesmo configurado no central.

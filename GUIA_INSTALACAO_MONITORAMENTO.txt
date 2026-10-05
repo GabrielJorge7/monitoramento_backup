@@ -67,6 +67,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_clien
   -NomeLoja "Farmacia Central" `
   -Responsavel "Joao da Silva"
 
+Forma mais simples: execute sem parametros para abrir uma janela de configuracao:
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1
+
+Preencha URL, token, CNPJ, nome da loja, responsavel e intervalo. Ao clicar em Instalar, o programa substitui o JSON local, cria a tarefa agendada e executa o primeiro monitoramento.
+
 O instalador ira automaticamente:
 
 - Detectar C:\InovaFarma.
