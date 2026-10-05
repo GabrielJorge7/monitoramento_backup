@@ -82,6 +82,7 @@ O instalador ira automaticamente:
 - Registrar a tarefa agendada Monitoramento Backup InovaFarma.
 - Executar o primeiro monitoramento.
 - Enviar o relatorio para o servidor central.
+- Consultar atualizacoes do modelo no GitHub antes das execucoes futuras, sem apagar os dados da loja.
 
 Nao e necessario abrir portas no computador cliente.
 O cliente precisa apenas conseguir acessar a internet por HTTPS.

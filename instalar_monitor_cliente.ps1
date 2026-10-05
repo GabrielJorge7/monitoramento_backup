@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $configPath = Join-Path $scriptRoot "monitorar_backups.config.json"
 $monitorScript = Join-Path $scriptRoot "monitorar_backups.ps1"
+$updaterScript = Join-Path $scriptRoot "atualizar_monitor_cliente.ps1"
 $inovaRoot = "C:\InovaFarma"
 $computerName = $env:COMPUTERNAME
 $clientId = ($computerName.ToLowerInvariant() -replace "[^a-z0-9._-]", "-")
@@ -134,7 +135,12 @@ if (-not (Test-Path -LiteralPath $monitorScript -PathType Leaf)) {
     throw "monitorar_backups.ps1 nao encontrado em $scriptRoot"
 }
 
+if (-not (Test-Path -LiteralPath $updaterScript -PathType Leaf)) {
+    throw "atualizar_monitor_cliente.ps1 nao encontrado em $scriptRoot"
+}
+
 $config = [ordered]@{
+    ConfigVersion = 1
     ClientId = $clientId
     ClientName = $resolvedClientName
     Cnpj = $Cnpj
@@ -163,7 +169,7 @@ Write-Output "Central: $CentralApiUrl"
 
 if (-not $NaoCriarTarefa) {
     $taskName = "Monitoramento Backup InovaFarma"
-    $taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$monitorScript`""
+    $taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`" -RunMonitor"
     $action = New-ScheduledTaskAction -Execute $powershellPath -Argument $taskArguments
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervaloMinutos)
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
@@ -171,4 +177,4 @@ if (-not $NaoCriarTarefa) {
     Write-Output "Tarefa agendada: $taskName (a cada $IntervaloMinutos minuto(s))"
 }
 
-& $powershellPath -NoProfile -ExecutionPolicy Bypass -File $monitorScript
+& $powershellPath -NoProfile -ExecutionPolicy Bypass -File $updaterScript -RunMonitor
