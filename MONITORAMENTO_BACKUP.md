@@ -65,7 +65,7 @@ Em cada cliente, preencha os campos abaixo em `monitorar_backups.config.json`:
   "Cnpj": "00.000.000/0001-00",
   "NomeLoja": "Farmacia Central",
   "Responsavel": "Nome do responsavel",
-  "CentralApiUrl": "http://SERVIDOR-MONITOR:8787/api/report",
+  "CentralApiUrl": "https://monitoramento-backup.onrender.com/api/report",
   "CentralApiToken": "troque-por-um-token"
 }
 ```
@@ -77,7 +77,7 @@ Mantenha no restante da configuracao os caminhos locais de `InovaFarmaRoot`, `Se
 Para evitar preencher esses dados manualmente, copie os arquivos do projeto para o cliente e execute apenas este comando como administrador:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 -CentralApiUrl "http://SERVIDOR-MONITOR:8787/api/report" -CentralApiToken "troque-por-um-token"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 -CentralApiUrl "https://monitoramento-backup.onrender.com/api/report" -CentralApiToken "troque-por-um-token"
 ```
 
 O instalador gera automaticamente `ClientId` a partir do nome do computador, usa o nome do computador como nome do cliente, detecta `C:\InovaFarma`, `7za.exe` e `DestinoBackup.txt`, cria o `monitorar_backups.config.json` e registra a tarefa `Monitoramento Backup InovaFarma` para executar a cada 30 minutos. Para preencher os dados comerciais durante a instalação, acrescente `-Cnpj`, `-NomeLoja` e `-Responsavel`. Para testar sem registrar a tarefa, acrescente `-NaoCriarTarefa`.
@@ -98,7 +98,7 @@ No computador que hospedara o painel, execute:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\servidor_central.ps1 -Token "troque-por-um-token"
 ```
 
-Se os clientes estiverem em outra rede, libere a porta TCP 8787 no firewall e use o IP ou nome DNS do servidor na opcao `CentralApiUrl`. O painel fica em `http://localhost:8787/` no servidor central. Para acesso de outras maquinas, use o endereco do servidor, por exemplo `http://SERVIDOR-MONITOR:8787/`.
+Para clientes em outras redes, use a URL publica da Render em `CentralApiUrl`. O painel fica em `https://monitoramento-backup.onrender.com/`.
 
 O painel atualiza a lista a cada 30 segundos. Um cliente passa para `OFFLINE` depois de 15 minutos sem enviar relatorio; esse limite pode ser alterado com `-OfflineMinutes`.
 
@@ -107,7 +107,7 @@ Na tela de clientes, use a pesquisa para localizar por CNPJ, loja, responsável,
 Para testes externos sem dominio proprio, o agente pode usar uma URL temporaria do Cloudflare Tunnel, por exemplo:
 
 ```json
-"CentralApiUrl": "https://seu-endereco-publico/api/report"
+"CentralApiUrl": "https://monitoramento-backup.onrender.com/api/report"
 ```
 
 Essa URL so funciona enquanto o comando `cloudflared tunnel --url http://127.0.0.1:8788` estiver em execucao. Ao reiniciar o tunel, a URL pode mudar.

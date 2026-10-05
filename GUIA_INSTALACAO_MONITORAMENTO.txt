@@ -26,10 +26,10 @@ O servidor central recebe os relatorios e disponibiliza o painel para consulta d
 ============================================================
 
 Painel:
-https://seu-endereco-publico/
+https://monitoramento-backup.onrender.com/
 
 API para os clientes:
-https://seu-endereco-publico/api/report
+https://monitoramento-backup.onrender.com/api/report
 
 Token atual:
 SEU_TOKEN_CENTRAL
@@ -61,7 +61,7 @@ cd C:\Monitoramento_Backup
 5. Execute o instalador abaixo, substituindo os dados do cliente:
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
-  -CentralApiUrl "https://seu-endereco-publico/api/report" `
+  -CentralApiUrl "https://monitoramento-backup.onrender.com/api/report" `
   -CentralApiToken "SEU_TOKEN_CENTRAL" `
   -Cnpj "12345678000199" `
   -NomeLoja "Farmacia Central" `
@@ -109,7 +109,7 @@ Se nao quiser verificar backups manuais, deixe assim:
 
 Abra o painel:
 
-https://seu-endereco-publico/
+https://monitoramento-backup.onrender.com/
 
 A tela permite pesquisar por aproximacao usando:
 

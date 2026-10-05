@@ -4,7 +4,7 @@
     "Cnpj": "00.000.000/0001-00",
     "NomeLoja": "Nome da Loja",
     "Responsavel": "Nome do Responsavel",
-    "CentralApiUrl": "https://seu-servico.onrender.com/api/report",
+    "CentralApiUrl": "https://monitoramento-backup.onrender.com/api/report",
     "CentralApiToken": "preencha-no-computador-do-cliente",
     "InovaFarmaRoot": "C:\\InovaFarma",
     "ServiceBackupRoot": "C:\\InovaFarma\\BACKUP",
