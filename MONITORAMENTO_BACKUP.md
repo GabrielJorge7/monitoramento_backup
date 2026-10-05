@@ -90,7 +90,7 @@ A janela solicita URL, token, CNPJ, nome da loja, responsavel e intervalo. Ao cl
 
 O instalador gera automaticamente `ClientId` a partir do nome do computador, usa o nome do computador como nome do cliente, detecta `C:\InovaFarma`, `7za.exe` e `DestinoBackup.txt`, cria o `monitorar_backups.config.json` e registra a tarefa `Monitoramento Backup InovaFarma` para executar a cada 30 minutos. Para preencher os dados comerciais durante a instalação, acrescente `-Cnpj`, `-NomeLoja` e `-Responsavel`. Para testar sem registrar a tarefa, acrescente `-NaoCriarTarefa`.
 
-A tarefa agendada consulta automaticamente o modelo de configuracao publicado no GitHub antes de cada verificacao. Ela adiciona apenas campos novos, preserva os dados da loja e depois envia o relatorio normalmente. Se o GitHub estiver indisponivel, o monitor continua usando a configuracao local.
+A instalacao cria duas tarefas agendadas separadas: `Monitoramento Backup InovaFarma`, que verifica e envia o relatorio a cada 30 minutos, e `Atualizar Configuracao Monitoramento InovaFarma`, que roda ao iniciar o Windows. O atualizador consulta o GitHub no maximo uma vez por dia, adiciona apenas campos novos e preserva os dados da loja. Se o GitHub estiver indisponivel, o monitor continua usando a configuracao local.
 
 O unico dado necessario no comando e o endereco do servidor central. O token deve ser o mesmo configurado no central.
 

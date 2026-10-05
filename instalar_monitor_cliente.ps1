@@ -168,13 +168,20 @@ Write-Output "Destino detectado: $(if ($backupRoot) { $backupRoot } else { 'sera
 Write-Output "Central: $CentralApiUrl"
 
 if (-not $NaoCriarTarefa) {
-    $taskName = "Monitoramento Backup InovaFarma"
-    $taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`" -RunMonitor"
-    $action = New-ScheduledTaskAction -Execute $powershellPath -Argument $taskArguments
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervaloMinutos)
+    $monitorTaskName = "Monitoramento Backup InovaFarma"
+    $monitorTaskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$monitorScript`""
+    $monitorAction = New-ScheduledTaskAction -Execute $powershellPath -Argument $monitorTaskArguments
+    $monitorTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervaloMinutos)
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
-    Write-Output "Tarefa agendada: $taskName (a cada $IntervaloMinutos minuto(s))"
+    Register-ScheduledTask -TaskName $monitorTaskName -Action $monitorAction -Trigger $monitorTrigger -Principal $principal -Force | Out-Null
+
+    $updateTaskName = "Atualizar Configuracao Monitoramento InovaFarma"
+    $updateTaskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`""
+    $updateAction = New-ScheduledTaskAction -Execute $powershellPath -Argument $updateTaskArguments
+    $updateTrigger = New-ScheduledTaskTrigger -AtStartup
+    Register-ScheduledTask -TaskName $updateTaskName -Action $updateAction -Trigger $updateTrigger -Principal $principal -Force | Out-Null
+    Write-Output "Tarefa agendada: $monitorTaskName (a cada $IntervaloMinutos minuto(s))"
+    Write-Output "Tarefa agendada: $updateTaskName (ao iniciar; no maximo uma vez por dia)"
 }
 
-& $powershellPath -NoProfile -ExecutionPolicy Bypass -File $updaterScript -RunMonitor
+& $powershellPath -NoProfile -ExecutionPolicy Bypass -File $monitorScript
