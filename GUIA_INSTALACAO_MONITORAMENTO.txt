@@ -212,7 +212,27 @@ Se o token for alterado no servidor central, todos os clientes precisam receber 
 Se o token for exposto publicamente, gere outro antes de usar o sistema em producao.
 
 ============================================================
-10. LIMITACAO DO TUNNEL TEMPORARIO
+10. LOGIN E CONTAS DE USUARIO
+============================================================
+
+O painel exige login antes de mostrar qualquer cliente.
+
+Na Render, configure tambem:
+
+ADMIN_EMAIL=admin@suaempresa.com
+ADMIN_PASSWORD=uma-senha-forte-com-8-ou-mais-caracteres
+
+Essas variaveis criam o primeiro administrador quando o banco for inicializado.
+
+Depois de entrar como administrador, use o botao Usuarios para criar contas de colaboradores ou administradores.
+
+Colaborador: pode pesquisar clientes e consultar backups.
+Administrador: pode fazer tudo do colaborador e criar ou desativar contas.
+
+O MONITOR_TOKEN continua sendo usado pelos computadores clientes. Ele nao e a senha de login dos colaboradores.
+
+============================================================
+11. LIMITACAO DO TUNNEL TEMPORARIO
 ============================================================
 
 A URL trycloudflare.com e adequada para teste.

@@ -137,7 +137,13 @@ Adicione estas variaveis de ambiente no Web Service:
 ```text
 MONITOR_TOKEN=gere-um-token-novo
 OFFLINE_MINUTES=15
+ADMIN_EMAIL=admin@suaempresa.com
+ADMIN_PASSWORD=uma-senha-forte-com-8-ou-mais-caracteres
 ```
+
+`ADMIN_EMAIL` e `ADMIN_PASSWORD` criam automaticamente o primeiro usuario administrador na primeira inicializacao do banco. Depois do primeiro acesso, o administrador pode abrir o botao `Usuarios` e criar contas de colaboradores ou outros administradores. Colaboradores podem consultar clientes, mas nao gerenciam contas.
+
+O login humano e separado do `MONITOR_TOKEN`: o token autentica os agentes instalados nos clientes, enquanto e-mail e senha autenticam os colaboradores do painel. O PostgreSQL armazena usuarios, senhas protegidas por hash e sessoes.
 
 A Render fornecera uma URL semelhante a `https://monitoramento-backup.onrender.com`. Nos clientes, configure:
 

@@ -2,10 +2,13 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { Pool } = require("pg");
+const crypto = require("node:crypto");
 
 const port = Number(process.env.PORT || 8787);
 const token = process.env.MONITOR_TOKEN || "";
 const offlineMinutes = Number(process.env.OFFLINE_MINUTES || 15);
+const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const dashboardPath = path.join(__dirname, "monitoramento-backup.html");
 const localStoragePath = path.join(__dirname, "clientes");
 const pool = process.env.DATABASE_URL
@@ -31,6 +34,60 @@ function readBody(request) {
     request.on("end", () => resolve(body));
     request.on("error", reject);
   });
+}
+
+function parseCookies(request) {
+  return Object.fromEntries((request.headers.cookie || "").split(";").filter(Boolean).map(item => {
+    const separator = item.indexOf("=");
+    return [item.slice(0, separator).trim(), decodeURIComponent(item.slice(separator + 1).trim())];
+  }));
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  return new Promise((resolve, reject) => crypto.scrypt(password, salt, 64, (error, key) => {
+    if (error) reject(error);
+    else resolve(`${salt}:${key.toString("hex")}`);
+  }));
+}
+
+async function verifyPassword(password, storedHash) {
+  const [salt, expected] = String(storedHash).split(":");
+  const actual = (await hashPassword(password, salt)).split(":")[1];
+  return expected && actual && crypto.timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
+}
+
+async function createSession(userId) {
+  const rawToken = crypto.randomBytes(32).toString("base64url");
+  const sessionHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  await pool.query("INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, NOW() + INTERVAL '12 hours')", [sessionHash, userId]);
+  return rawToken;
+}
+
+async function getSessionUser(request) {
+  if (!pool) return null;
+  const rawToken = parseCookies(request).monitor_session;
+  if (!rawToken) return null;
+  const sessionHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const result = await pool.query(`
+    SELECT u.id, u.email, u.name, u.role
+    FROM auth_sessions s JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.active = TRUE
+  `, [sessionHash]);
+  return result.rows[0] || null;
+}
+
+async function requireUser(request, response) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    sendJson(response, 401, { erro: "Login necessario." });
+    return null;
+  }
+  return user;
+}
+
+function sessionCookie(tokenValue, maxAge = 43200) {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `monitor_session=${encodeURIComponent(tokenValue)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`;
 }
 
 function safeClientId(value) {
@@ -132,7 +189,10 @@ async function statusPayload() {
 }
 
 async function initializeDatabase() {
-  if (!pool) return;
+  if (!pool) {
+    console.warn("DATABASE_URL nao configurada; login exige PostgreSQL.");
+    return;
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS client_reports (
       client_id TEXT PRIMARY KEY,
@@ -140,6 +200,29 @@ async function initializeDatabase() {
       report JSONB NOT NULL
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id BIGSERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('admin', 'collaborator')),
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+  `);
+  if (adminEmail && adminPassword) {
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [adminEmail]);
+    if (existing.rowCount === 0) {
+      await pool.query("INSERT INTO users (email, name, password_hash, role) VALUES ($1, $2, $3, 'admin')", [adminEmail, "Administrador", await hashPassword(adminPassword)]);
+      console.log(`Administrador inicial criado: ${adminEmail}`);
+    }
+  }
 }
 
 const server = http.createServer(async (request, response) => {
@@ -147,7 +230,37 @@ const server = http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
     const requestPath = requestUrl.pathname;
 
+    if (requestPath === "/api/auth/me" && request.method === "GET") {
+      if (!pool) { sendJson(response, 503, { erro: "Configure DATABASE_URL para habilitar o login." }); return; }
+      sendJson(response, 200, { usuario: await getSessionUser(request) });
+      return;
+    }
+
+    if (requestPath === "/api/auth/login" && request.method === "POST") {
+      if (!pool) { sendJson(response, 503, { erro: "Configure DATABASE_URL para habilitar o login." }); return; }
+      const body = JSON.parse(await readBody(request));
+      const result = await pool.query("SELECT * FROM users WHERE email = $1 AND active = TRUE", [String(body.email || "").trim().toLowerCase()]);
+      const user = result.rows[0];
+      if (!user || !(await verifyPassword(String(body.password || ""), user.password_hash))) {
+        sendJson(response, 401, { erro: "E-mail ou senha invalidos." });
+        return;
+      }
+      const sessionToken = await createSession(user.id);
+      response.setHeader("Set-Cookie", sessionCookie(sessionToken));
+      sendJson(response, 200, { usuario: { id: user.id, email: user.email, name: user.name, role: user.role } });
+      return;
+    }
+
+    if (requestPath === "/api/auth/logout" && request.method === "POST") {
+      const rawToken = parseCookies(request).monitor_session;
+      if (pool && rawToken) await pool.query("DELETE FROM auth_sessions WHERE token_hash = $1", [crypto.createHash("sha256").update(rawToken).digest("hex")]);
+      response.setHeader("Set-Cookie", sessionCookie("", 0));
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
     if (requestPath === "/" && request.method === "GET") {
+      if (!pool) { send(response, 503, "text/plain; charset=utf-8", "Configure DATABASE_URL para habilitar o login."); return; }
       send(response, 200, "text/html; charset=utf-8", fs.readFileSync(dashboardPath));
       return;
     }
@@ -165,11 +278,13 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (requestPath === "/api/status" && request.method === "GET") {
+      if (!await requireUser(request, response)) return;
       sendJson(response, 200, await statusPayload());
       return;
     }
 
     if (requestPath.startsWith("/api/client/") && request.method === "GET") {
+      if (!await requireUser(request, response)) return;
       const clientId = decodeURIComponent(requestPath.slice("/api/client/".length));
       const report = await getReport(clientId);
       if (!report) {
@@ -177,6 +292,41 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       sendJson(response, 200, report);
+      return;
+    }
+
+    if (requestPath === "/api/users" && request.method === "GET") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      if (user.role !== "admin") { sendJson(response, 403, { erro: "Acesso restrito ao administrador." }); return; }
+      const result = await pool.query("SELECT id, email, name, role, active, created_at FROM users ORDER BY name");
+      sendJson(response, 200, { usuarios: result.rows });
+      return;
+    }
+
+    if (requestPath === "/api/users" && request.method === "POST") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      if (user.role !== "admin") { sendJson(response, 403, { erro: "Acesso restrito ao administrador." }); return; }
+      const body = JSON.parse(await readBody(request));
+      const email = String(body.email || "").trim().toLowerCase();
+      const name = String(body.name || "").trim();
+      const role = body.role === "admin" ? "admin" : "collaborator";
+      if (!email || !name || String(body.password || "").length < 8) throw new Error("Informe nome, e-mail e senha com pelo menos 8 caracteres.");
+      const passwordHash = await hashPassword(String(body.password));
+      await pool.query("INSERT INTO users (email, name, password_hash, role) VALUES ($1, $2, $3, $4)", [email, name, passwordHash, role]);
+      sendJson(response, 201, { criado: true });
+      return;
+    }
+
+    if (requestPath.startsWith("/api/users/") && request.method === "PATCH") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      if (user.role !== "admin") { sendJson(response, 403, { erro: "Acesso restrito ao administrador." }); return; }
+      const userId = Number(requestPath.slice("/api/users/".length));
+      if (userId === user.id) throw new Error("O administrador atual nao pode ser desativado.");
+      await pool.query("UPDATE users SET active = NOT active WHERE id = $1", [userId]);
+      sendJson(response, 200, { atualizado: true });
       return;
     }
 
