@@ -214,9 +214,13 @@
             const response = await fetch("/api/users", { cache: "no-store" });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.erro || "Nao foi possivel carregar usuarios.");
-            userList.innerHTML = `<table class="admin-users"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Estado</th><th></th></tr></thead><tbody>${payload.usuarios.map(user => `<tr><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.email)}</td><td>${escapeHtml(user.role)}</td><td>${user.active ? "Ativo" : "Desativado"}</td><td>${user.active ? `<button type="button" data-user-id="${user.id}">Desativar</button>` : ""}</td></tr>`).join("")}</tbody></table>`;
+            userList.innerHTML = `<table class="admin-users"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Estado</th><th>Ações</th></tr></thead><tbody>${payload.usuarios.map(user => `<tr><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.email)}</td><td>${escapeHtml(user.role)}</td><td>${user.active ? "Ativo" : "Desativado"}</td><td>${user.active ? `<button type="button" data-action="toggle" data-user-id="${user.id}">Desativar</button>` : `<button type="button" data-action="toggle" data-user-id="${user.id}">Ativar</button>`} <button type="button" data-action="delete" data-user-id="${user.id}">Excluir</button></td></tr>`).join("")}</tbody></table>`;
             userList.querySelectorAll("button[data-user-id]").forEach(button => button.addEventListener("click", async () => {
-                await fetch(`/api/users/${button.dataset.userId}`, { method: "PATCH" });
+                const action = button.dataset.action;
+                if (action === "delete" && !window.confirm("Excluir esta conta permanentemente?")) return;
+                const response = await fetch(`/api/users/${button.dataset.userId}`, { method: action === "delete" ? "DELETE" : "PATCH" });
+                const payload = await response.json();
+                if (!response.ok) { userError.textContent = payload.erro || "Nao foi possivel atualizar a conta."; return; }
                 loadUsers();
             }));
         }

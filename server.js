@@ -330,6 +330,18 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (requestPath.startsWith("/api/users/") && request.method === "DELETE") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      if (user.role !== "admin") { sendJson(response, 403, { erro: "Acesso restrito ao administrador." }); return; }
+      const userId = Number(requestPath.slice("/api/users/".length));
+      if (!Number.isInteger(userId)) throw new Error("Usuario invalido.");
+      if (userId === user.id) throw new Error("O administrador atual nao pode excluir a propria conta.");
+      await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+      sendJson(response, 200, { excluido: true });
+      return;
+    }
+
     send(response, 404, "text/plain; charset=utf-8", "Nao encontrado");
   } catch (error) {
     sendJson(response, 500, { erro: error.message });
