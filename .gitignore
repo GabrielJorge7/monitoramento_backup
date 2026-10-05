@@ -1,0 +1,4 @@
+node_modules/
+clientes/
+.env
+monitorar_backups.config.json

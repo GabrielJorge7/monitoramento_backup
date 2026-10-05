@@ -1,0 +1,226 @@
+GUIA DE INSTALACAO - MONITORAMENTO DE BACKUPS
+
+Data: 05/10/2026
+
+============================================================
+1. COMO O SISTEMA FUNCIONA
+============================================================
+
+Cada computador cliente executa o monitor localmente.
+
+O monitor verifica:
+
+- Backups gerados pelo InovaFarma Service em:
+  C:\InovaFarma\BACKUP
+- Backups manuais, quando configurados em ManualBackupRoots.
+- Integridade dos arquivos .BAK usando RESTORE VERIFYONLY.
+- Integridade dos arquivos compactados usando o 7za.exe do InovaFarma.
+- Idade do backup mais recente.
+
+Depois da verificacao, o cliente envia somente o relatorio para o servidor central.
+
+O servidor central recebe os relatorios e disponibiliza o painel para consulta de todos os clientes.
+
+============================================================
+2. URL PUBLICA TEMPORARIA ATUAL
+============================================================
+
+Painel:
+https://seu-endereco-publico/
+
+API para os clientes:
+https://seu-endereco-publico/api/report
+
+Token atual:
+SEU_TOKEN_CENTRAL
+
+IMPORTANTE:
+Esta URL foi criada pelo Cloudflare Tunnel temporario.
+Ela pode mudar quando o tunel for encerrado e iniciado novamente.
+
+============================================================
+3. INSTALACAO EM CADA COMPUTADOR CLIENTE
+============================================================
+
+1. Crie uma pasta no cliente:
+
+C:\Monitoramento_Backup
+
+2. Copie para essa pasta estes arquivos:
+
+- monitorar_backups.ps1
+- monitorar_backups.config.json
+- instalar_monitor_cliente.ps1
+
+3. Abra o PowerShell como Administrador.
+
+4. Entre na pasta:
+
+cd C:\Monitoramento_Backup
+
+5. Execute o instalador abaixo, substituindo os dados do cliente:
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
+  -CentralApiUrl "https://seu-endereco-publico/api/report" `
+  -CentralApiToken "SEU_TOKEN_CENTRAL" `
+  -Cnpj "12345678000199" `
+  -NomeLoja "Farmacia Central" `
+  -Responsavel "Joao da Silva"
+
+O instalador ira automaticamente:
+
+- Detectar C:\InovaFarma.
+- Usar C:\InovaFarma\BACKUP como origem do servico.
+- Criar um ClientId pelo nome do computador.
+- Criar a configuracao local.
+- Registrar a tarefa agendada Monitoramento Backup InovaFarma.
+- Executar o primeiro monitoramento.
+- Enviar o relatorio para o servidor central.
+
+Nao e necessario abrir portas no computador cliente.
+O cliente precisa apenas conseguir acessar a internet por HTTPS.
+
+============================================================
+4. BACKUPS MANUAIS OPCIONAIS
+============================================================
+
+O backup do servico e verificado automaticamente em:
+
+C:\InovaFarma\BACKUP
+
+Para verificar tambem uma pasta de backup manual, edite o arquivo:
+
+C:\Monitoramento_Backup\monitorar_backups.config.json
+
+Use, por exemplo:
+
+"ServiceBackupRoot": "C:\\InovaFarma\\BACKUP",
+"ManualBackupRoots": [
+    "C:\\TEMP"
+]
+
+Se nao quiser verificar backups manuais, deixe assim:
+
+"ManualBackupRoots": []
+
+============================================================
+5. COMO CONSULTAR OS CLIENTES
+============================================================
+
+Abra o painel:
+
+https://seu-endereco-publico/
+
+A tela permite pesquisar por aproximacao usando:
+
+- CNPJ
+- Nome da loja
+- Responsavel
+- Servidor
+- Identificador do cliente
+
+Exemplo:
+Se o CNPJ for 12345678000199, pesquisar por 123 encontra esse cliente.
+
+Tambem e possivel filtrar por status:
+
+- OK
+- Atrasado
+- Invalido
+- Sem backup
+- Offline
+
+Nenhum cliente aparece antes de uma consulta ser realizada.
+
+============================================================
+6. QUANTO TEMPO A PORTA FICA ABERTA
+============================================================
+
+O Cloudflare Tunnel temporario nao possui um tempo fixo de expiracao.
+
+Ele permanece funcionando enquanto este comando estiver em execucao no servidor central:
+
+cloudflared tunnel --url http://127.0.0.1:8788
+
+A URL deixa de funcionar quando:
+
+- A janela do cloudflared for fechada.
+- O processo cloudflared for encerrado.
+- O computador central for desligado ou reiniciado.
+- O processo perder a conexao e nao conseguir reconectar.
+
+A porta 8788 do servidor central continua localmente ativa, mas a URL publica deixa de encaminhar o acesso quando o tunnel fecha.
+
+O tunnel temporario pode funcionar por horas ou dias, mas nao possui garantia de permanencia. Ele deve ser usado para testes, nao como servico definitivo.
+
+============================================================
+7. COMO CRIAR OUTRA URL QUANDO O TUNNEL FECHAR
+============================================================
+
+1. No computador central, confirme que o servidor central esta rodando na porta 8788.
+
+2. Abra o PowerShell na maquina central.
+
+3. Execute:
+
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8788
+
+4. O Cloudflare exibira uma nova URL parecida com:
+
+https://novo-endereco.trycloudflare.com
+
+5. Use a nova URL para acessar o painel:
+
+https://novo-endereco.trycloudflare.com/
+
+6. Atualize o CentralApiUrl em cada computador cliente:
+
+"CentralApiUrl": "https://novo-endereco.trycloudflare.com/api/report"
+
+7. Ou reinstale/reconfigure o cliente com:
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
+  -CentralApiUrl "https://novo-endereco.trycloudflare.com/api/report" `
+  -CentralApiToken "SEU_TOKEN_CENTRAL"
+
+8. Execute o monitor uma vez no cliente para testar:
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\monitorar_backups.ps1
+
+============================================================
+8. TESTE RAPIDO DO SERVIDOR CENTRAL
+============================================================
+
+No servidor central, o painel local deve responder em:
+
+http://127.0.0.1:8788/
+
+A API local deve responder em:
+
+http://127.0.0.1:8788/api/status
+
+Se o painel local abrir mas a URL trycloudflare nao abrir, o problema esta no tunnel, nao no monitor.
+
+============================================================
+9. ATENCAO SOBRE O TOKEN
+============================================================
+
+O token precisa ser igual no servidor central e em todos os clientes.
+
+Se o token for alterado no servidor central, todos os clientes precisam receber o novo token.
+
+Se o token for exposto publicamente, gere outro antes de usar o sistema em producao.
+
+============================================================
+10. LIMITACAO DO TUNNEL TEMPORARIO
+============================================================
+
+A URL trycloudflare.com e adequada para teste.
+
+Para uso permanente com muitos clientes, use uma destas alternativas:
+
+- Cloudflare Tunnel nomeado com conta Cloudflare.
+- VPN entre o servidor central e os clientes.
+- Servidor VPS ou nuvem com dominio e HTTPS.
+
+Com um tunnel nomeado, a URL pode permanecer fixa e os clientes nao precisam ser reconfigurados toda vez que o processo reiniciar.

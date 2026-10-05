@@ -1,0 +1,16 @@
+{
+  "name": "monitoramento-backup-central",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor central multi-cliente do monitoramento de backups",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

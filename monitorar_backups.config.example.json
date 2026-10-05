@@ -1,0 +1,19 @@
+{
+    "ClientId": "cliente-001",
+    "ClientName": "Nome da Loja",
+    "Cnpj": "00.000.000/0001-00",
+    "NomeLoja": "Nome da Loja",
+    "Responsavel": "Nome do Responsavel",
+    "CentralApiUrl": "https://seu-servico.onrender.com/api/report",
+    "CentralApiToken": "preencha-no-computador-do-cliente",
+    "InovaFarmaRoot": "C:\\InovaFarma",
+    "ServiceBackupRoot": "C:\\InovaFarma\\BACKUP",
+    "ManualBackupRoots": [],
+    "BackupNamePattern": "INOVAFARMA*",
+    "MaxAgeHours": 26,
+    "ValidateSqlBackups": true,
+    "SqlServer": ".\\SQL2016",
+    "SevenZipPath": "C:\\InovaFarma\\InovaFarmaAPI\\7z\\7za.exe",
+    "ReplicationPaths": [],
+    "ReportDirectory": "C:\\ProgramData\\InovaFarma\\MonitoramentoBackup"
+}

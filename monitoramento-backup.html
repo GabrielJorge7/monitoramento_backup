@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento de Backups</title>
+    <style>
+        :root {
+            --ink: #1b2838;
+            --muted: #6d7b88;
+            --paper: #f6f7f2;
+            --panel: #ffffff;
+            --line: #dce3e4;
+            --ok: #197a58;
+            --ok-soft: #e2f3eb;
+            --warn: #ad6900;
+            --warn-soft: #fff0cf;
+            --bad: #b33a3a;
+            --bad-soft: #fbe5e4;
+            --accent: #16697a;
+            --shadow: 0 14px 35px rgba(35, 57, 67, .08);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: var(--ink);
+            background: var(--paper);
+            font-family: Georgia, "Times New Roman", serif;
+        }
+        header {
+            padding: 32px clamp(20px, 5vw, 72px) 28px;
+            color: #f8fbf8;
+            background: linear-gradient(120deg, #173b4a, #16697a 55%, #4b8f8c);
+        }
+        .header-inner, main { max-width: 1280px; margin: 0 auto; }
+        .eyebrow {
+            margin: 0 0 9px;
+            color: #a9d9d0;
+            font: 700 12px/1.2 "Segoe UI", sans-serif;
+            letter-spacing: 1.7px;
+            text-transform: uppercase;
+        }
+        h1 { margin: 0; font-size: clamp(30px, 4vw, 52px); line-height: 1; font-weight: 700; }
+        .subtitle { margin: 12px 0 0; color: #d9eeee; font: 15px/1.5 "Segoe UI", sans-serif; }
+        main { padding: 30px clamp(20px, 5vw, 72px) 60px; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
+        .connection { display: flex; align-items: center; gap: 9px; color: var(--muted); font: 13px "Segoe UI", sans-serif; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
+        .dot.live { background: var(--ok); box-shadow: 0 0 0 5px var(--ok-soft); }
+        button {
+            border: 0; border-radius: 4px; padding: 11px 16px; color: white; background: var(--accent);
+            cursor: pointer; font: 700 13px "Segoe UI", sans-serif;
+        }
+        button:hover { background: #0f5261; }
+        .overview { display: grid; grid-template-columns: 1.25fr repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+        .card { padding: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+        .status-card { border-top: 5px solid var(--ok); }
+        .status-card.warn { border-top-color: var(--warn); }
+        .status-card.bad { border-top-color: var(--bad); }
+        .label { color: var(--muted); font: 700 11px "Segoe UI", sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+        .value { margin-top: 9px; font-size: 29px; font-weight: 700; }
+        .status-value { color: var(--ok); }
+        .warn .status-value { color: var(--warn); }
+        .bad .status-value { color: var(--bad); }
+        .detail { margin-top: 8px; color: var(--muted); font: 13px/1.4 "Segoe UI", sans-serif; }
+        .section-title { margin: 30px 0 12px; font-size: 23px; }
+        .source-section { margin-bottom: 22px; }
+        .source-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; padding: 15px 16px; color: var(--ink); background: #eaf2f0; border: 1px solid var(--line); font-size: 18px; }
+        .source-count { color: var(--muted); font: 700 11px "Segoe UI", sans-serif; letter-spacing: .7px; text-transform: uppercase; }
+        .filters { display: grid; grid-template-columns: minmax(220px, 1fr) 190px auto auto; gap: 10px; margin-bottom: 12px; }
+        .filters input, .filters select { width: 100%; padding: 11px 12px; color: var(--ink); background: white; border: 1px solid var(--line); border-radius: 4px; font: 14px "Segoe UI", sans-serif; }
+        .result-count { align-self: center; color: var(--muted); font: 13px "Segoe UI", sans-serif; }
+        .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+        table { width: 100%; border-collapse: collapse; min-width: 760px; }
+        th, td { padding: 15px 16px; border-bottom: 1px solid var(--line); text-align: left; }
+        th { color: var(--muted); background: #f1f5f3; font: 700 11px "Segoe UI", sans-serif; letter-spacing: .8px; text-transform: uppercase; }
+        td { font: 14px "Segoe UI", sans-serif; }
+        tr:last-child td { border-bottom: 0; }
+        .filename { color: var(--ink); font-weight: 700; }
+        .badge { display: inline-block; padding: 5px 9px; border-radius: 12px; font: 700 11px "Segoe UI", sans-serif; }
+        .badge.ok { color: var(--ok); background: var(--ok-soft); }
+        .badge.warn { color: var(--warn); background: var(--warn-soft); }
+        .badge.bad { color: var(--bad); background: var(--bad-soft); }
+        .empty, .error { padding: 28px; color: var(--muted); text-align: center; font: 14px "Segoe UI", sans-serif; }
+        .error { color: var(--bad); }
+        @media (max-width: 900px) { .overview { grid-template-columns: repeat(2, 1fr); } .status-card { grid-column: span 2; } }
+        @media (max-width: 560px) { .overview { grid-template-columns: 1fr; } .status-card { grid-column: auto; } .toolbar { align-items: flex-start; flex-direction: column; } .filters { grid-template-columns: 1fr; } header { padding-top: 26px; } }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <p class="eyebrow">InovaFarma / Operacao</p>
+            <h1>Monitoramento de backups</h1>
+            <p class="subtitle">Acompanhe todos os clientes monitorados em um unico painel.</p>
+        </div>
+    </header>
+    <main>
+        <div class="toolbar">
+            <div class="connection"><span id="connection-dot" class="dot"></span><span id="connection-text">Conectando ao monitor...</span></div>
+            <button id="refresh" type="button">Atualizar agora</button>
+        </div>
+        <section id="overview" class="overview" aria-live="polite"></section>
+        <h2 class="section-title">Clientes monitorados</h2>
+        <div class="filters">
+            <input id="client-search" type="search" placeholder="Pesquisar por CNPJ, loja, responsável ou servidor">
+            <select id="status-filter" aria-label="Filtrar por status">
+                <option value="">Todos os status</option>
+                <option value="ok">OK</option>
+                <option value="atrasado">Atrasado</option>
+                <option value="invalido">Inválido</option>
+                <option value="sem_backup">Sem backup</option>
+                <option value="offline">Offline</option>
+            </select>
+            <button id="search-client" type="button">Consultar</button>
+            <button id="clear-search" type="button">Limpar</button>
+            <span id="result-count" class="result-count"></span>
+        </div>
+        <div id="clients" class="table-wrap" aria-live="polite"><div class="empty">Carregando clientes...</div></div>
+        <h2 id="detail-title" class="section-title">Detalhes do cliente</h2>
+        <div id="files" class="table-wrap" aria-live="polite"><div class="empty">Selecione um cliente para ver os arquivos.</div></div>
+    </main>
+    <script>
+        const refreshButton = document.getElementById("refresh");
+        const overview = document.getElementById("overview");
+        const clients = document.getElementById("clients");
+        const files = document.getElementById("files");
+        const detailTitle = document.getElementById("detail-title");
+        const connectionDot = document.getElementById("connection-dot");
+        const connectionText = document.getElementById("connection-text");
+        const clientSearch = document.getElementById("client-search");
+        const statusFilter = document.getElementById("status-filter");
+        const searchClientButton = document.getElementById("search-client");
+        const clearSearchButton = document.getElementById("clear-search");
+        const resultCount = document.getElementById("result-count");
+        let allClients = [];
+        let loading = false;
+
+        const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+        }[character]));
+        const parseDate = value => {
+            if (!value) return null;
+            const powershellDate = String(value).match(/^\/Date\((-?\d+)\)\/$/);
+            return new Date(powershellDate ? Number(powershellDate[1]) : value);
+        };
+        const formatDate = value => { const date = parseDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR") : "-"; };
+        const formatAge = value => value == null ? "-" : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
+        const formatBytes = value => value == null ? "-" : `${(Number(value) / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+        const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP" }[status] || String(status || "DESCONHECIDO").toUpperCase());
+        const statusClass = status => status === "ok" ? "ok" : (status === "atrasado" || status === "nao_configurado" ? "warn" : "bad");
+
+        function renderOverview(summary) {
+            overview.innerHTML = `
+                <article class="card status-card ok"><div class="label">Clientes monitorados</div><div class="value status-value">${escapeHtml(summary.Total)}</div><div class="detail">Total cadastrado no central</div></article>
+                <article class="card"><div class="label">Backups em dia</div><div class="value">${escapeHtml(summary.Ok)}</div><div class="detail">Clientes com estado OK</div></article>
+                <article class="card"><div class="label">Atenção necessaria</div><div class="value">${escapeHtml(Number(summary.Atrasados) + Number(summary.Invalidos) + Number(summary.SemBackup))}</div><div class="detail">Atrasados, invalidos ou sem backup</div></article>
+                <article class="card"><div class="label">Offline</div><div class="value">${escapeHtml(summary.Offline)}</div><div class="detail">Sem comunicacao no periodo definido</div></article>`;
+        }
+
+        function renderClients(clientList, message = "Nenhum cliente corresponde aos filtros.") {
+            resultCount.textContent = clientList.length ? `${clientList.length} de ${allClients.length} cliente(s)` : "";
+            if (!clientList.length) { clients.innerHTML = `<div class="empty">${message}</div>`; return; }
+            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Estado</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${clientList.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table>`;
+            clients.querySelectorAll("tr[data-client-id]").forEach(row => {
+                row.addEventListener("click", () => loadClient(row.dataset.clientId));
+                row.addEventListener("keydown", event => { if (event.key === "Enter") loadClient(row.dataset.clientId); });
+            });
+        }
+
+        function applyClientFilters() {
+            const search = clientSearch.value.trim().toLocaleLowerCase("pt-BR");
+            if (!search) {
+                renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
+                return;
+            }
+            const normalizedSearch = search.replace(/[^\p{L}\p{N}]/gu, "");
+            const selectedStatus = statusFilter.value;
+            const filtered = allClients.filter(client => {
+                const searchable = [client.Cnpj, client.NomeLoja, client.ClienteNome, client.Responsavel, client.Servidor, client.ClienteId].join(" ").toLocaleLowerCase("pt-BR");
+                const normalizedSearchable = searchable.replace(/[^\p{L}\p{N}]/gu, "");
+                return (!search || searchable.includes(search) || normalizedSearchable.includes(normalizedSearch)) && (!selectedStatus || client.Status === selectedStatus);
+            });
+            renderClients(filtered);
+        }
+
+        function submitClientSearch() {
+            applyClientFilters();
+        }
+
+        function renderFiles(report) {
+            detailTitle.textContent = `Detalhes: ${report.ClienteNome || report.ClienteId || report.Servidor}`;
+            const records = Array.isArray(report.Arquivos) ? report.Arquivos : [];
+            if (!records.length) { files.innerHTML = '<div class="empty">Nenhum backup encontrado.</div>'; return; }
+            const renderSourceTable = (title, sourceRecords) => {
+                if (!sourceRecords.length) return "";
+                return `<section class="source-section"><h3 class="source-heading">${title}<span class="source-count">${sourceRecords.length} arquivo(s)</span></h3><table><thead><tr><th>Arquivo</th><th>Tipo</th><th>Alterado em</th><th>Tamanho</th><th>Validacao</th><th>Replicacao</th></tr></thead><tbody>${sourceRecords.map(record => {
+                    const replication = Array.isArray(record.Replicacoes) ? record.Replicacoes[0] : null;
+                    return `<tr><td class="filename">${escapeHtml(record.Nome)}</td><td>${escapeHtml(record.Tipo)}</td><td>${formatDate(record.UltimaAlteracao)}</td><td>${formatBytes(record.TamanhoBytes)}</td><td><span class="badge ${statusClass(record.Validacao)}">${escapeHtml(statusLabel(record.Validacao))}</span></td><td><span class="badge ${statusClass(replication?.Status)}">${escapeHtml(statusLabel(replication?.Status || "-"))}</span></td></tr>`;
+                }).join("")}</tbody></table></section>`;
+            };
+            const serviceRecords = records.filter(record => record.Origem === "service");
+            const manualRecords = records.filter(record => record.Origem === "manual");
+            const otherRecords = records.filter(record => record.Origem !== "service" && record.Origem !== "manual");
+            files.innerHTML = renderSourceTable("Backups do InovaFarma Service", serviceRecords) + renderSourceTable("Backups manuais", manualRecords) + renderSourceTable("Outras origens", otherRecords);
+        }
+
+        async function loadClient(clientId) {
+            try {
+                const response = await fetch(`/api/client/${encodeURIComponent(clientId)}?at=${Date.now()}`, { cache: "no-store" });
+                if (!response.ok) throw new Error("Nao foi possivel carregar o detalhe do cliente.");
+                renderFiles(await response.json());
+            } catch (error) { files.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`; }
+        }
+
+        async function loadStatus() {
+            if (loading) return;
+            loading = true;
+            try {
+                const response = await fetch(`/api/status?at=${Date.now()}`, { cache: "no-store" });
+                if (!response.ok) throw new Error("O servidor nao retornou um relatorio.");
+                const payload = await response.json();
+                if (!Array.isArray(payload.Clientes)) throw new Error("Este servidor ainda nao esta configurado como central multi-cliente.");
+                renderOverview(payload.Resumo);
+                allClients = payload.Clientes;
+                if (clientSearch.value.trim()) applyClientFilters();
+                else renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
+                connectionDot.classList.add("live");
+                connectionText.textContent = `Online | Atualizado ${new Date().toLocaleTimeString("pt-BR")}`;
+            } catch (error) {
+                connectionDot.classList.remove("live");
+                connectionText.textContent = "Sem conexao com o monitor";
+                overview.innerHTML = `<article class="card error" style="grid-column:1/-1">${escapeHtml(error.message)}</article>`;
+                clients.innerHTML = '<div class="error">Nao foi possivel carregar os clientes.</div>';
+                files.innerHTML = '<div class="error">Nao foi possivel carregar os detalhes.</div>';
+            } finally { loading = false; }
+        }
+
+        refreshButton.addEventListener("click", loadStatus);
+        searchClientButton.addEventListener("click", submitClientSearch);
+        clearSearchButton.addEventListener("click", () => {
+            clientSearch.value = "";
+            statusFilter.value = "";
+            renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
+            files.innerHTML = '<div class="empty">Selecione um cliente para ver os arquivos.</div>';
+        });
+        clientSearch.addEventListener("keydown", event => { if (event.key === "Enter") submitClientSearch(); });
+        statusFilter.addEventListener("change", submitClientSearch);
+        loadStatus();
+        setInterval(loadStatus, 30000);
+    </script>
+</body>
+</html>
