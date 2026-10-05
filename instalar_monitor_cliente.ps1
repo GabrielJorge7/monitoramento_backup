@@ -21,6 +21,7 @@ $clientId = ($computerName.ToLowerInvariant() -replace "[^a-z0-9._-]", "-")
 $resolvedClientName = if ($ClientName) { $ClientName } else { $computerName }
 $sevenZipPath = Join-Path $inovaRoot "InovaFarmaAPI\7z\7za.exe"
 $destinationFile = Join-Path $inovaRoot "DestinoBackup.txt"
+$powershellPath = (Get-Command powershell.exe).Source
 $backupRoot = ""
 
 if (Test-Path -LiteralPath $destinationFile -PathType Leaf) {
@@ -63,7 +64,6 @@ Write-Output "Central: $CentralApiUrl"
 
 if (-not $NaoCriarTarefa) {
     $taskName = "Monitoramento Backup InovaFarma"
-    $powershellPath = (Get-Command powershell.exe).Source
     $taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$monitorScript`""
     $action = New-ScheduledTaskAction -Execute $powershellPath -Argument $taskArguments
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervaloMinutos)
