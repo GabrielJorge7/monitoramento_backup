@@ -92,6 +92,8 @@ O instalador gera automaticamente `ClientId` a partir do nome do computador, usa
 
 A instalacao cria duas tarefas agendadas separadas: `Monitoramento Backup InovaFarma`, que verifica e envia o relatorio a cada 30 minutos, e `Atualizar Configuracao Monitoramento InovaFarma`, que roda ao iniciar o Windows. O atualizador consulta o GitHub no maximo uma vez por dia, adiciona apenas campos novos e preserva os dados da loja. Se o GitHub estiver indisponivel, o monitor continua usando a configuracao local.
 
+O status geral sempre representa o `ServiceBackupRoot`. Backups em `ManualBackupRoots` aparecem separados e nunca podem mascarar `sem_backup` ou `indisponivel` do Service. `nao_verificado` significa que o arquivo mais recente foi encontrado, mas o executavel de validacao nao estava disponivel.
+
 O unico dado necessario no comando e o endereco do servidor central. O token deve ser o mesmo configurado no central.
 
 Para executar manualmente o agente:

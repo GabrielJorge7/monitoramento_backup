@@ -157,6 +157,7 @@
                 <option value="atrasado">Atrasado</option>
                 <option value="invalido">Inválido</option>
                 <option value="sem_backup">Sem backup</option>
+                <option value="nao_verificado">Nao verificado</option>
                 <option value="offline">Offline</option>
             </select>
             <button id="search-client" type="button">Consultar</button>
@@ -244,8 +245,8 @@
         const formatDate = value => { const date = parseDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR") : "-"; };
         const formatAge = value => value == null ? "-" : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
         const formatBytes = value => value == null ? "-" : `${(Number(value) / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
-        const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP" }[status] || String(status || "DESCONHECIDO").toUpperCase());
-        const statusClass = status => status === "ok" ? "ok" : (status === "atrasado" || status === "nao_configurado" ? "warn" : "bad");
+        const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP", nao_verificado: "NÃO VERIFICADO", nao_configurado: "NÃO CONFIGURADO", indisponivel: "INDISPONÍVEL" }[status] || String(status || "DESCONHECIDO").toUpperCase());
+        const statusClass = status => status === "ok" ? "ok" : (["atrasado", "nao_configurado", "nao_verificado"].includes(status) ? "warn" : "bad");
 
         function renderOverview(summary) {
             overview.innerHTML = `
@@ -263,7 +264,7 @@
             const pageClients = clientList.slice(pageStart, pageStart + pageSize);
             resultCount.textContent = clientList.length ? `${clientList.length} de ${allClients.length} cliente(s)` : "";
             if (!clientList.length) { clients.innerHTML = `<div class="empty">${message}</div>`; return; }
-            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Estado</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
+            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Geral</th><th>Service</th><th>Manual</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td><span class="badge ${statusClass(client.StatusService)}">${escapeHtml(statusLabel(client.StatusService))}</span></td><td><span class="badge ${statusClass(client.StatusManual)}">${escapeHtml(statusLabel(client.StatusManual))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
             clients.querySelectorAll("tr[data-client-id]").forEach(row => {
                 row.addEventListener("click", () => loadClient(row.dataset.clientId));
                 row.addEventListener("keydown", event => { if (event.key === "Enter") loadClient(row.dataset.clientId); });

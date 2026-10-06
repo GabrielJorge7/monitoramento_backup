@@ -144,8 +144,11 @@ Tambem e possivel filtrar por status:
 - OK
 - Atrasado
 - Invalido
+- Nao verificado
 - Sem backup
 - Offline
+
+O status geral representa sempre os backups do InovaFarma Service. Os backups manuais sao apresentados separadamente e nao podem transformar um Service sem backup em OK. `Nao verificado` significa que o arquivo foi encontrado, mas a ferramenta de validacao nao estava disponivel.
 
 Nenhum cliente aparece antes de uma consulta ser realizada.
 

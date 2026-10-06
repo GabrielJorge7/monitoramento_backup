@@ -40,7 +40,8 @@ function Get-BackupRoots([object]$config) {
     }
 
     if ($roots.Count -eq 0) {
-        throw "Nenhum destino de backup encontrado. Verifique ServiceBackupRoot ou ManualBackupRoots."
+        $configuredServiceRoot = if ($config.ServiceBackupRoot) { [string]$config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
+        return @([PSCustomObject]@{ Path = $configuredServiceRoot; Origem = "service" })
     }
 
     return $roots.ToArray()
@@ -155,8 +156,22 @@ function Get-BackupRecord([System.IO.FileInfo]$file, [object]$config, [string]$s
     }
 }
 
+function Get-SourceStatus([object[]]$sourceRecords, [double]$maxAgeHours) {
+    $records = @($sourceRecords)
+    if ($records.Count -eq 0) { return "sem_backup" }
+
+    $latest = $records | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1
+    $ageHours = ((Get-Date) - [datetime]$latest.UltimaAlteracao).TotalHours
+    if ($ageHours -gt $maxAgeHours) { return "atrasado" }
+    if ($latest.Validacao -eq "invalido") { return "invalido" }
+    if ($latest.Validacao -eq "nao_verificado") { return "nao_verificado" }
+    return "ok"
+}
+
 $config = Get-Config
 $backupRoots = @(Get-BackupRoots $config)
+$serviceRootPath = if ($config.ServiceBackupRoot) { [string]$config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
+$serviceRootAvailable = Test-Path -LiteralPath $serviceRootPath -PathType Container
 $sevenZipPath = if ($config.SevenZipPath -and (Test-Path -LiteralPath $config.SevenZipPath)) { $config.SevenZipPath } else { $null }
 $osqlPath = Find-Executable "osql.exe" @(
     "C:\Program Files (x86)\Microsoft SQL Server\140\Tools\Binn\OSQL.EXE",
@@ -166,6 +181,7 @@ $osqlPath = Find-Executable "osql.exe" @(
 $extensions = @(".bak", ".zip", ".7z", ".rar", ".001")
 $fileEntries = @()
 foreach ($backupRoot in $backupRoots) {
+    if (-not (Test-Path -LiteralPath $backupRoot.Path -PathType Container)) { continue }
     $files = @(Get-ChildItem -LiteralPath $backupRoot.Path -File -Force -Recurse -ErrorAction Stop | Where-Object {
         $isSegmentedArchive = $_.Name -match "\.(zip|7z|rar)\.\d{3}$"
         (($extensions -contains $_.Extension.ToLowerInvariant()) -or $isSegmentedArchive) -and $_.Name -like $config.BackupNamePattern
@@ -179,11 +195,14 @@ $records = @($fileEntries | Sort-Object { $_.File.LastWriteTime } -Descending | 
 })
 
 $now = Get-Date
-$latest = $records | Select-Object -First 1
+$serviceRecords = @($records | Where-Object Origem -eq "service")
+$manualRecords = @($records | Where-Object Origem -eq "manual")
+$statusService = if ($serviceRootAvailable) { Get-SourceStatus $serviceRecords ([double]$config.MaxAgeHours) } else { "indisponivel" }
+$statusManual = Get-SourceStatus $manualRecords ([double]$config.MaxAgeHours)
+$latest = $serviceRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1
+if (-not $latest) { $latest = $manualRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1 }
 $ageHours = if ($latest) { [math]::Round(($now - [datetime]$latest.UltimaAlteracao).TotalHours, 2) } else { $null }
-$latestIsRecent = $latest -and $ageHours -le [double]$config.MaxAgeHours
-$hasInvalid = @($records | Where-Object { $_.Validacao -eq "invalido" }).Count -gt 0
-$overallStatus = if (-not $latest) { "sem_backup" } elseif (-not $latestIsRecent) { "atrasado" } elseif ($hasInvalid) { "invalido" } else { "ok" }
+$overallStatus = $statusService
 
 $report = [PSCustomObject]@{
     ClienteId = if ($config.ClientId) { $config.ClientId } else { $env:COMPUTERNAME }
@@ -195,6 +214,10 @@ $report = [PSCustomObject]@{
     Servidor = $env:COMPUTERNAME
     DestinoAnalisado = (($backupRoots | ForEach-Object { $_.Path }) -join "; ")
     Status = $overallStatus
+    StatusService = $statusService
+    StatusManual = $statusManual
+    ArquivosInvalidos = @($records | Where-Object Validacao -eq "invalido").Count
+    ArquivosNaoVerificados = @($records | Where-Object Validacao -eq "nao_verificado").Count
     UltimoBackup = if ($latest) { $latest.UltimaAlteracao } else { $null }
     IdadeUltimoBackupHoras = $ageHours
     BackupsEncontrados = $records.Count
