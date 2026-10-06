@@ -35,7 +35,7 @@ Edite `monitorar_backups.config.json` e informe as pastas de destino, por exempl
 
 O arquivo do terminal precisa ter o mesmo nome do arquivo do servidor e o mesmo tamanho. A origem automatica ou manual ainda nao e distinguida porque essa informacao nao esta presente no nome dos arquivos observados; para isso sera necessario integrar com o log ou com um registro do `InovaFarma Service`.
 
-O campo `MaxAgeHours` define quando o estado passa para `atrasado`. O valor inicial e 26 horas para tolerar pequenas variacoes no agendamento diario.
+O campo `MaxAgeHours` define quando o estado passa para `atrasado`. O valor atual e 24 horas: o Service pode ficar sem gerar arquivo durante a janela normal entre 20:00 e 08:00, mas passa a ser considerado atrasado depois de um dia sem backup. Clientes antigos que ainda estejam no valor padrão 26 serão ajustados automaticamente para 24 pelo atualizador; valores personalizados são preservados.
 
 ### Backup manual opcional
 
@@ -92,7 +92,7 @@ O instalador gera automaticamente `ClientId` a partir do nome do computador, usa
 
 A instalacao cria duas tarefas agendadas separadas: `Monitoramento Backup InovaFarma`, que verifica e envia o relatorio a cada 30 minutos, e `Atualizar Configuracao Monitoramento InovaFarma`, que roda ao iniciar o Windows. O atualizador consulta o GitHub no maximo uma vez por dia, adiciona apenas campos novos e preserva os dados da loja. Se o GitHub estiver indisponivel, o monitor continua usando a configuracao local.
 
-O status geral sempre representa o `ServiceBackupRoot`. Backups em `ManualBackupRoots` aparecem separados e nunca podem mascarar `sem_backup` ou `indisponivel` do Service. `nao_verificado` significa que o arquivo mais recente foi encontrado, mas o executavel de validacao nao estava disponivel.
+O status geral sempre representa o `ServiceBackupRoot`. Backups em `ManualBackupRoots` aparecem separados e nunca podem mascarar `sem_backup` ou `indisponivel` do Service. `nao_verificado` significa que o arquivo mais recente foi encontrado, mas o executavel de validacao nao estava disponivel. `suspeito_tamanho` aparece somente quando o arquivo mais recente da mesma origem e menor que o anterior; tamanho igual ou maior nao gera alerta.
 
 O unico dado necessario no comando e o endereco do servidor central. O token deve ser o mesmo configurado no central.
 
@@ -112,7 +112,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\servidor_central.ps1 -
 
 Para clientes em outras redes, use a URL publica da Render em `CentralApiUrl`. O painel fica em `https://monitoramento-backup.onrender.com/`.
 
-O painel atualiza a lista a cada 30 segundos. Um cliente passa para `OFFLINE` depois de 15 minutos sem enviar relatorio; esse limite pode ser alterado com `-OfflineMinutes`.
+O painel atualiza a lista a cada 30 segundos. Um cliente passa para `OFFLINE` depois de 90 minutos sem enviar relatorio. Esse valor evita falso offline porque o agente envia a cada 30 minutos; na Render, use `OFFLINE_MINUTES=90`.
 
 Na tela de clientes, use a pesquisa para localizar por CNPJ, loja, responsável, servidor ou identificador e use o filtro de status para separar clientes em dia, atrasados, inválidos, sem backup ou offline.
 
@@ -148,7 +148,7 @@ Adicione estas variaveis de ambiente no Web Service:
 
 ```text
 MONITOR_TOKEN=gere-um-token-novo
-OFFLINE_MINUTES=15
+OFFLINE_MINUTES=90
 ADMIN_EMAIL=admin@suaempresa.com
 ADMIN_PASSWORD=uma-senha-forte-com-8-ou-mais-caracteres
 ```

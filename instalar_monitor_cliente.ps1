@@ -140,7 +140,7 @@ if (-not (Test-Path -LiteralPath $updaterScript -PathType Leaf)) {
 }
 
 $config = [ordered]@{
-    ConfigVersion = 1
+    ConfigVersion = 2
     ClientId = $clientId
     ClientName = $resolvedClientName
     Cnpj = $Cnpj
@@ -153,7 +153,7 @@ $config = [ordered]@{
     ManualBackupRoots = @()
     BackupRoot = ""
     BackupNamePattern = "INOVAFARMA*"
-    MaxAgeHours = 26
+    MaxAgeHours = 24
     ValidateSqlBackups = $true
     SqlServer = ".\SQL2016"
     SevenZipPath = $sevenZipPath

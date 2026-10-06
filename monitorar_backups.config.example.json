@@ -1,5 +1,5 @@
 {
-    "ConfigVersion": 1,
+    "ConfigVersion": 2,
     "ClientId": "cliente-001",
     "ClientName": "Nome da Loja",
     "Cnpj": "00.000.000/0001-00",
@@ -11,7 +11,7 @@
     "ServiceBackupRoot": "C:\\InovaFarma\\BACKUP",
     "ManualBackupRoots": [],
     "BackupNamePattern": "INOVAFARMA*",
-    "MaxAgeHours": 26,
+    "MaxAgeHours": 24,
     "ValidateSqlBackups": true,
     "SqlServer": ".\\SQL2016",
     "SevenZipPath": "C:\\InovaFarma\\InovaFarmaAPI\\7z\\7za.exe",

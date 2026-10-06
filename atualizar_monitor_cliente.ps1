@@ -48,6 +48,12 @@ try {
         }
     }
 
+    $localVersion = if ($localConfig.ConfigVersion) { [int]$localConfig.ConfigVersion } else { 1 }
+    if ($localVersion -lt 2 -and [double]$localConfig.MaxAgeHours -eq 26) {
+        $localConfig.MaxAgeHours = 24
+        $added += "MaxAgeHours (politica de 24 horas)"
+    }
+
     $localConfig | Add-Member -MemberType NoteProperty -Name "ConfigVersion" -Value ([int]$templateConfig.ConfigVersion) -Force
     $localConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
     New-Item -ItemType Directory -Path (Split-Path -Parent $updateMarkerPath) -Force | Out-Null

@@ -145,8 +145,11 @@ Tambem e possivel filtrar por status:
 - Atrasado
 - Invalido
 - Nao verificado
+- Suspeito: tamanho menor
 - Sem backup
 - Offline
+
+O status geral representa sempre os backups do InovaFarma Service. Os backups manuais sao apresentados separadamente e nao podem transformar um Service sem backup em OK. O status `Suspeito: tamanho menor` aparece somente quando o ultimo arquivo da mesma origem e menor que o anterior. Se for igual ou maior, nao ha alerta de tamanho.
 
 O status geral representa sempre os backups do InovaFarma Service. Os backups manuais sao apresentados separadamente e nao podem transformar um Service sem backup em OK. `Nao verificado` significa que o arquivo foi encontrado, mas a ferramenta de validacao nao estava disponivel.
 

@@ -158,6 +158,7 @@
                 <option value="invalido">Inválido</option>
                 <option value="sem_backup">Sem backup</option>
                 <option value="nao_verificado">Nao verificado</option>
+                <option value="suspeito_tamanho">Suspeito: tamanho menor</option>
                 <option value="offline">Offline</option>
             </select>
             <button id="search-client" type="button">Consultar</button>
@@ -245,14 +246,14 @@
         const formatDate = value => { const date = parseDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR") : "-"; };
         const formatAge = value => value == null ? "-" : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
         const formatBytes = value => value == null ? "-" : `${(Number(value) / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
-        const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP", nao_verificado: "NÃO VERIFICADO", nao_configurado: "NÃO CONFIGURADO", indisponivel: "INDISPONÍVEL" }[status] || String(status || "DESCONHECIDO").toUpperCase());
-        const statusClass = status => status === "ok" ? "ok" : (["atrasado", "nao_configurado", "nao_verificado"].includes(status) ? "warn" : "bad");
+        const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP", nao_verificado: "NÃO VERIFICADO", nao_configurado: "NÃO CONFIGURADO", indisponivel: "INDISPONÍVEL", suspeito_tamanho: "SUSPEITO: TAMANHO MENOR" }[status] || String(status || "DESCONHECIDO").toUpperCase());
+        const statusClass = status => status === "ok" ? "ok" : (["atrasado", "nao_configurado", "nao_verificado", "suspeito_tamanho"].includes(status) ? "warn" : "bad");
 
         function renderOverview(summary) {
             overview.innerHTML = `
                 <article class="card status-card ok"><div class="label">Clientes monitorados</div><div class="value status-value">${escapeHtml(summary.Total)}</div><div class="detail">Total cadastrado no central</div></article>
                 <article class="card"><div class="label">Backups em dia</div><div class="value">${escapeHtml(summary.Ok)}</div><div class="detail">Clientes com estado OK</div></article>
-                <article class="card"><div class="label">Atenção necessaria</div><div class="value">${escapeHtml(Number(summary.Atrasados) + Number(summary.Invalidos) + Number(summary.SemBackup))}</div><div class="detail">Atrasados, invalidos ou sem backup</div></article>
+                <article class="card"><div class="label">Atenção necessaria</div><div class="value">${escapeHtml(Number(summary.Atrasados) + Number(summary.Invalidos) + Number(summary.SemBackup) + Number(summary.NaoVerificados || 0) + Number(summary.SuspeitosTamanho || 0))}</div><div class="detail">Atrasados, inválidos, não verificados ou suspeitos</div></article>
                 <article class="card"><div class="label">Offline</div><div class="value">${escapeHtml(summary.Offline)}</div><div class="detail">Sem comunicacao no periodo definido</div></article>`;
         }
 
@@ -308,7 +309,9 @@
             const serviceRecords = records.filter(record => record.Origem === "service");
             const manualRecords = records.filter(record => record.Origem === "manual");
             const otherRecords = records.filter(record => record.Origem !== "service" && record.Origem !== "manual");
-            files.innerHTML = renderSourceTable("Backups do InovaFarma Service", serviceRecords) + renderSourceTable("Backups manuais", manualRecords) + renderSourceTable("Outras origens", otherRecords);
+            const serviceWarning = report.ComparativoTamanhoService?.Reduziu ? " | ALERTA: ultimo menor que anterior" : "";
+            const manualWarning = report.ComparativoTamanhoManual?.Reduziu ? " | ALERTA: ultimo menor que anterior" : "";
+            files.innerHTML = renderSourceTable(`Backups do InovaFarma Service${serviceWarning}`, serviceRecords) + renderSourceTable(`Backups manuais${manualWarning}`, manualRecords) + renderSourceTable("Outras origens", otherRecords);
         }
 
         async function loadClient(clientId) {

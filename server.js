@@ -6,7 +6,7 @@ const crypto = require("node:crypto");
 
 const port = Number(process.env.PORT || 8787);
 const token = process.env.MONITOR_TOKEN || "";
-const offlineMinutes = Number(process.env.OFFLINE_MINUTES || 15);
+const offlineMinutes = Number(process.env.OFFLINE_MINUTES || 90);
 const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const dashboardPath = path.join(__dirname, "monitoramento-backup.html");
@@ -113,6 +113,8 @@ function clientSummary(report, receivedAt) {
     StatusLocal: String(report.Status || "sem_backup"),
     StatusService: String(report.StatusService || report.Status || "sem_backup"),
     StatusManual: String(report.StatusManual || "nao_configurado"),
+    ComparativoTamanhoService: report.ComparativoTamanhoService || null,
+    ComparativoTamanhoManual: report.ComparativoTamanhoManual || null,
     ArquivosInvalidos: Number(report.ArquivosInvalidos || 0),
     ArquivosNaoVerificados: Number(report.ArquivosNaoVerificados || 0),
     UltimoContato: receivedAt,
@@ -187,6 +189,7 @@ async function statusPayload() {
       Invalidos: clients.filter(client => client.Status === "invalido").length,
       SemBackup: clients.filter(client => client.Status === "sem_backup").length,
       NaoVerificados: clients.filter(client => client.Status === "nao_verificado").length,
+      SuspeitosTamanho: clients.filter(client => client.Status === "suspeito_tamanho").length,
       Offline: clients.filter(client => client.Status === "offline").length,
     },
     Clientes: clients,

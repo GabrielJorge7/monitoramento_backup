@@ -165,7 +165,15 @@ function Get-SourceStatus([object[]]$sourceRecords, [double]$maxAgeHours) {
     if ($ageHours -gt $maxAgeHours) { return "atrasado" }
     if ($latest.Validacao -eq "invalido") { return "invalido" }
     if ($latest.Validacao -eq "nao_verificado") { return "nao_verificado" }
+    $previous = $records | Sort-Object UltimaAlteracao -Descending | Select-Object -Skip 1 -First 1
+    if ($previous -and $latest.TamanhoBytes -lt $previous.TamanhoBytes) { return "suspeito_tamanho" }
     return "ok"
+}
+
+function Get-SizeComparison([object[]]$sourceRecords) {
+    $ordered = @($sourceRecords | Sort-Object UltimaAlteracao -Descending)
+    if ($ordered.Count -lt 2) { return [PSCustomObject]@{ AtualBytes = if ($ordered) { $ordered[0].TamanhoBytes } else { $null }; AnteriorBytes = $null; Reduziu = $false } }
+    return [PSCustomObject]@{ AtualBytes = $ordered[0].TamanhoBytes; AnteriorBytes = $ordered[1].TamanhoBytes; Reduziu = $ordered[0].TamanhoBytes -lt $ordered[1].TamanhoBytes }
 }
 
 $config = Get-Config
@@ -199,6 +207,8 @@ $serviceRecords = @($records | Where-Object Origem -eq "service")
 $manualRecords = @($records | Where-Object Origem -eq "manual")
 $statusService = if ($serviceRootAvailable) { Get-SourceStatus $serviceRecords ([double]$config.MaxAgeHours) } else { "indisponivel" }
 $statusManual = Get-SourceStatus $manualRecords ([double]$config.MaxAgeHours)
+$sizeService = Get-SizeComparison $serviceRecords
+$sizeManual = Get-SizeComparison $manualRecords
 $latest = $serviceRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1
 if (-not $latest) { $latest = $manualRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1 }
 $ageHours = if ($latest) { [math]::Round(($now - [datetime]$latest.UltimaAlteracao).TotalHours, 2) } else { $null }
@@ -216,6 +226,8 @@ $report = [PSCustomObject]@{
     Status = $overallStatus
     StatusService = $statusService
     StatusManual = $statusManual
+    ComparativoTamanhoService = $sizeService
+    ComparativoTamanhoManual = $sizeManual
     ArquivosInvalidos = @($records | Where-Object Validacao -eq "invalido").Count
     ArquivosNaoVerificados = @($records | Where-Object Validacao -eq "nao_verificado").Count
     UltimoBackup = if ($latest) { $latest.UltimaAlteracao } else { $null }
