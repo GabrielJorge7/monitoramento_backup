@@ -1,6 +1,6 @@
 GUIA DE INSTALACAO - MONITORAMENTO DE BACKUPS
 
-Data: 05/10/2026
+Data: 06/10/2026
 
 ============================================================
 1. COMO O SISTEMA FUNCIONA
@@ -22,7 +22,7 @@ Depois da verificacao, o cliente envia somente o relatorio para o servidor centr
 O servidor central recebe os relatorios e disponibiliza o painel para consulta de todos os clientes.
 
 ============================================================
-2. URL PUBLICA TEMPORARIA ATUAL
+2. URL PUBLICA ATUAL
 ============================================================
 
 Painel:
@@ -31,12 +31,11 @@ https://monitoramento-backup.onrender.com/
 API para os clientes:
 https://monitoramento-backup.onrender.com/api/report
 
-Token atual:
-SEU_TOKEN_CENTRAL
+Token:
+Use somente o valor de MONITOR_TOKEN configurado na Render.
 
 IMPORTANTE:
-Esta URL foi criada pelo Cloudflare Tunnel temporario.
-Ela pode mudar quando o tunel for encerrado e iniciado novamente.
+A URL da Render e fixa. O token nao deve ser colocado neste guia nem compartilhado publicamente.
 
 ============================================================
 3. INSTALACAO EM CADA COMPUTADOR CLIENTE
@@ -49,7 +48,7 @@ C:\Monitoramento_Backup
 2. Copie para essa pasta estes arquivos:
 
 - monitorar_backups.ps1
-- monitorar_backups.config.json
+- atualizar_monitor_cliente.ps1
 - instalar_monitor_cliente.ps1
 
 3. Abra o PowerShell como Administrador.
@@ -58,20 +57,29 @@ C:\Monitoramento_Backup
 
 cd C:\Monitoramento_Backup
 
-5. Execute o instalador abaixo, substituindo os dados do cliente:
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
-  -CentralApiUrl "https://monitoramento-backup.onrender.com/api/report" `
-  -CentralApiToken "SEU_TOKEN_CENTRAL" `
-  -Cnpj "12345678000199" `
-  -NomeLoja "Farmacia Central" `
-  -Responsavel "Joao da Silva"
-
-Forma mais simples: execute sem parametros para abrir uma janela de configuracao:
+5. Forma recomendada: execute o instalador sem parametros para abrir a interface:
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1
 
-Preencha URL, token, CNPJ, nome da loja, responsavel e intervalo. Ao clicar em Instalar, o programa substitui o JSON local, cria a tarefa agendada e executa o primeiro monitoramento.
+Preencha na janela:
+
+- URL da API central: https://monitoramento-backup.onrender.com/api/report
+- Token central: somente o valor do MONITOR_TOKEN configurado na Render
+- CNPJ
+- Nome da loja
+- Responsavel
+- Intervalo do monitoramento, normalmente 30 minutos
+
+Marque a opcao para criar a tarefa agendada e clique em Instalar.
+
+Tambem e possivel instalar por comando:
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
+  -CentralApiUrl "https://monitoramento-backup.onrender.com/api/report" `
+  -CentralApiToken "SEU_MONITOR_TOKEN" `
+  -Cnpj "12345678000199" `
+  -NomeLoja "Farmacia Central" `
+  -Responsavel "Joao da Silva"
 
 O instalador ira automaticamente:
 
@@ -79,12 +87,12 @@ O instalador ira automaticamente:
 - Usar C:\InovaFarma\BACKUP como origem do servico.
 - Criar um ClientId pelo nome do computador.
 - Criar a configuracao local.
-- Registrar a tarefa agendada Monitoramento Backup InovaFarma.
+- Registrar a tarefa Monitoramento Backup InovaFarma para executar a cada 30 minutos.
+- Registrar a tarefa Atualizar Configuracao Monitoramento InovaFarma para executar ao iniciar o Windows.
 - Executar o primeiro monitoramento.
 - Enviar o relatorio para o servidor central.
-- Criar uma tarefa de monitoramento a cada 30 minutos.
-- Criar uma tarefa de atualizacao ao iniciar o Windows, no maximo uma vez por dia.
-- Consultar atualizacoes do modelo no GitHub sem apagar os dados da loja.
+- Consultar o modelo do GitHub ao iniciar, no maximo uma vez por dia.
+- Adicionar novos campos sem apagar os dados da loja.
 
 Nao e necessario abrir portas no computador cliente.
 O cliente precisa apenas conseguir acessar a internet por HTTPS.
@@ -142,76 +150,21 @@ Tambem e possivel filtrar por status:
 Nenhum cliente aparece antes de uma consulta ser realizada.
 
 ============================================================
-6. QUANTO TEMPO A PORTA FICA ABERTA
+6. TESTE DO CLIENTE
 ============================================================
 
-O Cloudflare Tunnel temporario nao possui um tempo fixo de expiracao.
+Depois da instalacao, aguarde alguns segundos e abra o painel:
 
-Ele permanece funcionando enquanto este comando estiver em execucao no servidor central:
+https://monitoramento-backup.onrender.com/
 
-cloudflared tunnel --url http://127.0.0.1:8788
-
-A URL deixa de funcionar quando:
-
-- A janela do cloudflared for fechada.
-- O processo cloudflared for encerrado.
-- O computador central for desligado ou reiniciado.
-- O processo perder a conexao e nao conseguir reconectar.
-
-A porta 8788 do servidor central continua localmente ativa, mas a URL publica deixa de encaminhar o acesso quando o tunnel fecha.
-
-O tunnel temporario pode funcionar por horas ou dias, mas nao possui garantia de permanencia. Ele deve ser usado para testes, nao como servico definitivo.
-
-============================================================
-7. COMO CRIAR OUTRA URL QUANDO O TUNNEL FECHAR
-============================================================
-
-1. No computador central, confirme que o servidor central esta rodando na porta 8788.
-
-2. Abra o PowerShell na maquina central.
-
-3. Execute:
-
-& "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://127.0.0.1:8788
-
-4. O Cloudflare exibira uma nova URL parecida com:
-
-https://novo-endereco.trycloudflare.com
-
-5. Use a nova URL para acessar o painel:
-
-https://novo-endereco.trycloudflare.com/
-
-6. Atualize o CentralApiUrl em cada computador cliente:
-
-"CentralApiUrl": "https://novo-endereco.trycloudflare.com/api/report"
-
-7. Ou reinstale/reconfigure o cliente com:
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\instalar_monitor_cliente.ps1 `
-  -CentralApiUrl "https://novo-endereco.trycloudflare.com/api/report" `
-  -CentralApiToken "SEU_TOKEN_CENTRAL"
-
-8. Execute o monitor uma vez no cliente para testar:
+Se a loja nao aparecer, execute manualmente no cliente:
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\monitorar_backups.ps1
 
-============================================================
-8. TESTE RAPIDO DO SERVIDOR CENTRAL
-============================================================
-
-No servidor central, o painel local deve responder em:
-
-http://127.0.0.1:8788/
-
-A API local deve responder em:
-
-http://127.0.0.1:8788/api/status
-
-Se o painel local abrir mas a URL trycloudflare nao abrir, o problema esta no tunnel, nao no monitor.
+O cliente precisa ter acesso HTTPS a internet e o token precisa ser igual ao MONITOR_TOKEN da Render.
 
 ============================================================
-9. ATENCAO SOBRE O TOKEN
+7. ATENCAO SOBRE O TOKEN
 ============================================================
 
 O token precisa ser igual no servidor central e em todos os clientes.
@@ -221,7 +174,7 @@ Se o token for alterado no servidor central, todos os clientes precisam receber 
 Se o token for exposto publicamente, gere outro antes de usar o sistema em producao.
 
 ============================================================
-10. LOGIN E CONTAS DE USUARIO
+8. LOGIN E CONTAS DE USUARIO
 ============================================================
 
 O painel exige login antes de mostrar qualquer cliente.
@@ -241,15 +194,13 @@ Administrador: pode fazer tudo do colaborador e criar ou desativar contas.
 O MONITOR_TOKEN continua sendo usado pelos computadores clientes. Ele nao e a senha de login dos colaboradores.
 
 ============================================================
-11. LIMITACAO DO TUNNEL TEMPORARIO
+9. ARQUITETURA ATUAL
 ============================================================
 
-A URL trycloudflare.com e adequada para teste.
+O painel e a API central estao hospedados na Render:
 
-Para uso permanente com muitos clientes, use uma destas alternativas:
+https://monitoramento-backup.onrender.com/
 
-- Cloudflare Tunnel nomeado com conta Cloudflare.
-- VPN entre o servidor central e os clientes.
-- Servidor VPS ou nuvem com dominio e HTTPS.
+Os clientes enviam os relatorios pela API HTTPS. Nao e necessario abrir portas nos computadores clientes.
 
-Com um tunnel nomeado, a URL pode permanecer fixa e os clientes nao precisam ser reconfigurados toda vez que o processo reiniciar.
+O banco PostgreSQL da Render armazena os relatorios, usuarios e sessoes do painel.
