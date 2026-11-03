@@ -31,6 +31,10 @@ function Get-ClientPath([string]$clientId) {
     return Join-Path $StorageDirectory ((Get-SafeFileName $clientId) + ".json")
 }
 
+function Get-MinutesSince([datetime]$date) {
+    return [math]::Max(0, ((Get-Date) - $date).TotalMinutes)
+}
+
 function Read-Body([System.Net.HttpListenerRequest]$request) {
     $reader = [System.IO.StreamReader]::new($request.InputStream, $request.ContentEncoding)
     try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
@@ -60,6 +64,7 @@ function Get-Clients {
             Status = $clientStatus
             StatusLocal = [string]$report.Status
             UltimoContato = $lastContact
+            MinutosDesdeUltimoContato = Get-MinutesSince $lastContact
             GeradoEm = $report.GeradoEm
             UltimoBackup = $report.UltimoBackup
             IdadeUltimoBackupHoras = $report.IdadeUltimoBackupHoras

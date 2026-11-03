@@ -46,6 +46,7 @@
         main { padding: 30px clamp(20px, 5vw, 72px) 60px; }
         .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
         .connection { display: flex; align-items: center; gap: 9px; color: var(--muted); font: 13px "Segoe UI", sans-serif; }
+        .now-label { margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--line); }
         .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
         .dot.live { background: var(--ok); box-shadow: 0 0 0 5px var(--ok-soft); }
         button {
@@ -109,9 +110,129 @@
         .error { color: var(--bad); }
         @media (max-width: 900px) { .overview { grid-template-columns: repeat(2, 1fr); } .status-card { grid-column: span 2; } }
         @media (max-width: 560px) { .overview { grid-template-columns: 1fr; } .status-card { grid-column: auto; } .toolbar { align-items: flex-start; flex-direction: column; } .filters { grid-template-columns: 1fr; } header { padding-top: 26px; } }
+
+        /* InovaFarma visual system: blue for operation, green for healthy backups. */
+        :root {
+            color-scheme: light;
+            --ink: #123047;
+            --muted: #64788a;
+            --paper: #f3f8fa;
+            --panel: #ffffff;
+            --line: #d7e5e9;
+            --accent: #087e9a;
+            --accent-strong: #075b78;
+            --accent-soft: #e2f3f6;
+            --ok: #16835d;
+            --ok-soft: #e3f5ec;
+            --warn: #a96805;
+            --warn-soft: #fff3d8;
+            --bad: #b83f4b;
+            --bad-soft: #fde9eb;
+            --shadow: 0 16px 38px rgba(13, 61, 82, .09);
+            --header-start: #073b5b;
+            --header-end: #087e9a;
+            --table-head: #edf5f6;
+        }
+
+        html.dark {
+            color-scheme: dark;
+            --ink: #e7f2f5;
+            --muted: #9ab0bb;
+            --paper: #0c202c;
+            --panel: #122d3b;
+            --line: #285064;
+            --accent: #45b7c8;
+            --accent-strong: #79d4dc;
+            --accent-soft: #173d4c;
+            --ok: #55c995;
+            --ok-soft: #163f39;
+            --warn: #f0b858;
+            --warn-soft: #493919;
+            --bad: #f1848d;
+            --bad-soft: #4a2730;
+            --shadow: 0 16px 38px rgba(0, 0, 0, .22);
+            --header-start: #061f35;
+            --header-end: #075b78;
+            --table-head: #173b4a;
+        }
+
+        body {
+            color: var(--ink);
+            background: var(--paper);
+            font-family: "Aptos", "Segoe UI", sans-serif;
+            transition: background-color .25s ease, color .25s ease;
+        }
+        header {
+            position: relative;
+            padding: 48px clamp(20px, 5vw, 72px) 42px;
+            background: linear-gradient(120deg, var(--header-start), var(--header-end) 64%, #17956f);
+            box-shadow: 0 10px 28px rgba(4, 48, 69, .18);
+        }
+        header::after {
+            position: absolute;
+            right: 7%;
+            bottom: -34px;
+            width: 180px;
+            height: 180px;
+            border: 1px solid rgba(255, 255, 255, .16);
+            border-radius: 50%;
+            content: "";
+        }
+        .header-inner { position: relative; z-index: 1; }
+        .eyebrow { color: #a4e1d0; font-family: "Aptos", "Segoe UI", sans-serif; letter-spacing: 2px; }
+        h1 { font-family: "Trebuchet MS", "Segoe UI", sans-serif; letter-spacing: 0; }
+        .subtitle { color: #d7f0f0; }
+        main { padding-top: 38px; }
+        .toolbar { margin-bottom: 26px; }
+        .connection { font-weight: 600; }
+        .dot { width: 9px; height: 9px; }
+        button {
+            border-radius: 7px;
+            padding: 10px 15px;
+            background: var(--accent);
+            box-shadow: 0 5px 12px rgba(8, 126, 154, .16);
+            transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease;
+        }
+        button:hover { background: var(--accent-strong); box-shadow: 0 8px 18px rgba(8, 126, 154, .22); transform: translateY(-1px); }
+        button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(69, 183, 200, .38); outline-offset: 2px; }
+        .theme-toggle { position: fixed; top: 18px; right: 22px; z-index: 20; width: 40px; height: 40px; padding: 0; border: 1px solid rgba(255, 255, 255, .32); color: white; background: rgba(255, 255, 255, .12); font-size: 18px; box-shadow: none; }
+        .theme-toggle:hover { background: rgba(255, 255, 255, .22); }
+        .overview { gap: 16px; }
+        .card, .admin-panel, .table-wrap, .login-card {
+            border-color: var(--line);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+        }
+        .card { padding: 23px; }
+        .status-card { border-top-width: 4px; }
+        .value { font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
+        .section-title { font-family: "Trebuchet MS", "Segoe UI", sans-serif; letter-spacing: 0; }
+        .source-heading, .terminal-list { background: var(--accent-soft); border-color: var(--line); }
+        .filters input, .filters select, .login-card input, .admin-panel input, .admin-panel select {
+            color: var(--ink);
+            background: var(--panel);
+            border-color: var(--line);
+            border-radius: 7px;
+        }
+        .filters input::placeholder { color: var(--muted); }
+        .pagination, th { background: var(--table-head); }
+        .login-shell { background: linear-gradient(135deg, var(--header-start), var(--header-end) 62%, #17956f); }
+        .login-card { padding: 34px; background: var(--panel); }
+        .login-card h1 { font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
+        .admin-panel { background: var(--panel); }
+        .table-wrap { overflow: hidden auto; background: var(--panel); }
+        td { color: var(--ink); }
+        .filename { color: var(--accent-strong); }
+        .badge { border-radius: 7px; }
+        @media (max-width: 560px) {
+            header { padding-bottom: 34px; }
+            .user-tools { flex-wrap: wrap; }
+            .theme-toggle { order: -1; }
+        }
     </style>
 </head>
 <body>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Ativar tema escuro" title="Ativar tema escuro">☾</button>
     <section id="login-screen" class="login-shell">
         <form id="login-form" class="login-card">
             <p class="eyebrow" style="color:var(--accent)">InovaFarma / Operacao</p>
@@ -135,7 +256,7 @@
     </header>
     <main>
         <div class="toolbar">
-            <div class="connection"><span id="connection-dot" class="dot"></span><span id="connection-text">Conectando ao monitor...</span></div>
+            <div class="connection"><span id="connection-dot" class="dot"></span><span id="connection-text">Conectando ao monitor...</span><span class="now-label">Agora: <strong id="current-time">--/--/---- --:--:--</strong></span></div>
             <div class="user-tools"><span id="user-name"></span><button id="admin-toggle" class="hidden" type="button">Usuários</button><button id="logout" type="button">Sair</button><button id="refresh" type="button">Atualizar agora</button></div>
         </div>
         <section id="admin-panel" class="admin-panel hidden">
@@ -191,16 +312,33 @@
         const detailTitle = document.getElementById("detail-title");
         const connectionDot = document.getElementById("connection-dot");
         const connectionText = document.getElementById("connection-text");
+        const currentTime = document.getElementById("current-time");
         const clientSearch = document.getElementById("client-search");
         const statusFilter = document.getElementById("status-filter");
         const searchClientButton = document.getElementById("search-client");
         const clearSearchButton = document.getElementById("clear-search");
         const resultCount = document.getElementById("result-count");
+        const themeToggle = document.getElementById("theme-toggle");
         let allClients = [];
         let filteredClients = [];
         let currentPage = 1;
         const pageSize = 20;
         let loading = false;
+
+        function setTheme(theme) {
+            const isDark = theme === "dark";
+            document.documentElement.classList.toggle("dark", isDark);
+            themeToggle.textContent = isDark ? "☀" : "☾";
+            themeToggle.setAttribute("aria-label", isDark ? "Ativar tema claro" : "Ativar tema escuro");
+            themeToggle.title = isDark ? "Ativar tema claro" : "Ativar tema escuro";
+        }
+
+        setTheme(localStorage.getItem("monitor-theme") || "light");
+        themeToggle.addEventListener("click", () => {
+            const nextTheme = document.documentElement.classList.contains("dark") ? "light" : "dark";
+            localStorage.setItem("monitor-theme", nextTheme);
+            setTheme(nextTheme);
+        });
 
         function showApp(user) {
             loginScreen.classList.add("hidden");
@@ -247,6 +385,18 @@
             return new Date(powershellDate ? Number(powershellDate[1]) : value);
         };
         const formatDate = value => { const date = parseDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR") : "-"; };
+        const formatElapsedMinutes = value => {
+            if (value == null || !Number.isFinite(Number(value))) return "tempo desconhecido";
+            const minutes = Math.max(0, Number(value));
+            if (minutes < 1) return "agora";
+            if (minutes < 60) return `há ${Math.floor(minutes)} min`;
+            const hours = minutes / 60;
+            if (hours < 24) return `há ${Math.floor(hours)} h`;
+            const days = hours / 24;
+            if (days < 30) return `há ${Math.floor(days)} dia(s)`;
+            return `há ${Math.floor(days / 30)} mes(es) e ${Math.floor(days % 30)} dia(s)`;
+        };
+        const updateCurrentTime = () => { currentTime.textContent = new Date().toLocaleString("pt-BR"); };
         const formatAge = value => value == null ? "-" : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
         const formatBytes = value => value == null ? "-" : `${(Number(value) / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
         const statusLabel = status => ({ ok: "OK", atrasado: "ATRASADO", invalido: "INVÁLIDO", sem_backup: "SEM BACKUP", nao_verificado: "NÃO VERIFICADO", nao_configurado: "NÃO CONFIGURADO", indisponivel: "INDISPONÍVEL", suspeito_tamanho: "SUSPEITO: TAMANHO MENOR" }[status] || String(status || "DESCONHECIDO").toUpperCase());
@@ -268,7 +418,7 @@
             const pageClients = clientList.slice(pageStart, pageStart + pageSize);
             resultCount.textContent = clientList.length ? `${clientList.length} de ${allClients.length} cliente(s)` : "";
             if (!clientList.length) { clients.innerHTML = `<div class="empty">${message}</div>`; return; }
-            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>Subgrupo</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Geral</th><th>Service</th><th>Manual</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.SubgrupoNome || client.SubgrupoId || "-")}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td><span class="badge ${statusClass(client.StatusService)}">${escapeHtml(statusLabel(client.StatusService))}</span></td><td><span class="badge ${statusClass(client.StatusManual)}">${escapeHtml(statusLabel(client.StatusManual))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
+                clients.innerHTML = `<table><thead><tr><th>Loja</th><th>Subgrupo</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Geral</th><th>Service</th><th>Manual</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.SubgrupoNome || client.SubgrupoId || "-")}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td><span class="badge ${statusClass(client.StatusService)}">${escapeHtml(statusLabel(client.StatusService))}</span></td><td><span class="badge ${statusClass(client.StatusManual)}">${escapeHtml(statusLabel(client.StatusManual))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)} <small>(${formatElapsedMinutes(client.MinutosDesdeUltimoContato)})</small></td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
             clients.querySelectorAll("tr[data-client-id]").forEach(row => {
                 row.addEventListener("click", () => loadClient(row.dataset.clientId));
                 row.addEventListener("keydown", event => { if (event.key === "Enter") loadClient(row.dataset.clientId); });
@@ -386,6 +536,8 @@
         });
         clientSearch.addEventListener("keydown", event => { if (event.key === "Enter") submitClientSearch(); });
         statusFilter.addEventListener("change", submitClientSearch);
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 60 * 60 * 1000);
         bootstrapAuth();
         setInterval(loadStatus, 30000);
     </script>

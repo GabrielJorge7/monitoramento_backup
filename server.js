@@ -97,7 +97,13 @@ function safeClientId(value) {
 }
 
 function isOffline(receivedAt) {
-  return (Date.now() - new Date(receivedAt).getTime()) / 60000 > offlineMinutes;
+  return minutesSince(receivedAt) > offlineMinutes;
+}
+
+function minutesSince(receivedAt) {
+  const timestamp = new Date(receivedAt).getTime();
+  if (!Number.isFinite(timestamp)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, (Date.now() - timestamp) / 60000);
 }
 
 function clientSummary(report, receivedAt) {
@@ -121,6 +127,7 @@ function clientSummary(report, receivedAt) {
     ArquivosInvalidos: Number(report.ArquivosInvalidos || 0),
     ArquivosNaoVerificados: Number(report.ArquivosNaoVerificados || 0),
     UltimoContato: receivedAt,
+    MinutosDesdeUltimoContato: minutesSince(receivedAt),
     GeradoEm: report.GeradoEm || null,
     UltimoBackup: report.UltimoBackup || null,
     IdadeUltimoBackupHoras: report.IdadeUltimoBackupHoras ?? null,
