@@ -102,25 +102,42 @@ function Test-SqlBackup([System.IO.FileInfo]$file, [string]$sqlServer, [string]$
     return @{ Status = "invalido"; Detalhe = ($output | Select-Object -Last 8) -join " | " }
 }
 
+function Get-TerminalTargets([object]$config) {
+    $terminals = @($config.Terminais | Where-Object { $_ -and $_.Caminho -and $_.Caminho.ToString().Trim() })
+    if ($terminals.Count -gt 0) {
+        return @($terminals | ForEach-Object {
+            [PSCustomObject]@{
+                Id = if ($_.Id) { [string]$_.Id } else { [string]$_.Caminho }
+                Nome = if ($_.Nome) { [string]$_.Nome } else { [string]$_.Caminho }
+                Caminho = [string]$_.Caminho
+            }
+        })
+    }
+
+    return @($config.ReplicationPaths | Where-Object { $_ -and $_.ToString().Trim() } | ForEach-Object {
+        [PSCustomObject]@{ Id = [string]$_; Nome = [string]$_; Caminho = [string]$_ }
+    })
+}
+
 function Get-ReplicationResult([System.IO.FileInfo]$source, [object]$config) {
-    $paths = @($config.ReplicationPaths | Where-Object { $_ -and $_.ToString().Trim() })
-    if ($paths.Count -eq 0) {
+    $terminals = @(Get-TerminalTargets $config)
+    if ($terminals.Count -eq 0) {
         return @(@{ Destino = $null; Status = "nao_configurado"; Detalhe = "Nenhum terminal configurado" })
     }
 
     $results = @()
-    foreach ($path in $paths) {
-        $target = Join-Path $path $source.Name
+    foreach ($terminal in $terminals) {
+        $target = Join-Path $terminal.Caminho $source.Name
         if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
-            $results += @{ Destino = $path; Status = "ausente"; Detalhe = $target }
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "ausente"; Detalhe = $target }
             continue
         }
 
         $targetFile = Get-Item -LiteralPath $target
         if ($targetFile.Length -eq $source.Length) {
-            $results += @{ Destino = $path; Status = "ok"; Detalhe = "Nome e tamanho conferem" }
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "ok"; Detalhe = "Nome e tamanho conferem" }
         } else {
-            $results += @{ Destino = $path; Status = "incompleto"; Detalhe = "Tamanho diferente" }
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "incompleto"; Detalhe = "Tamanho diferente" }
         }
     }
 
@@ -226,6 +243,9 @@ $report = [PSCustomObject]@{
     Status = $overallStatus
     StatusService = $statusService
     StatusManual = $statusManual
+    SubgrupoId = if ($config.SubgrupoId) { [string]$config.SubgrupoId } else { "" }
+    SubgrupoNome = if ($config.SubgrupoNome) { [string]$config.SubgrupoNome } else { [string]$config.ClientName }
+    Terminais = @(Get-TerminalTargets $config)
     ComparativoTamanhoService = $sizeService
     ComparativoTamanhoManual = $sizeManual
     ArquivosInvalidos = @($records | Where-Object Validacao -eq "invalido").Count

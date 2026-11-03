@@ -10,6 +10,20 @@
     "InovaFarmaRoot": "C:\\InovaFarma",
     "ServiceBackupRoot": "C:\\InovaFarma\\BACKUP",
     "ManualBackupRoots": [],
+    "SubgrupoId": "servidor-loja-01",
+    "SubgrupoNome": "Loja Central - Servidor principal",
+    "Terminais": [
+        {
+            "Id": "terminal-01",
+            "Nome": "Terminal 01",
+            "Caminho": "\\\\TERMINAL01\\Backups"
+        },
+        {
+            "Id": "terminal-02",
+            "Nome": "Terminal 02",
+            "Caminho": "\\\\TERMINAL02\\Backups"
+        }
+    ],
     "BackupNamePattern": "INOVAFARMA*",
     "MaxAgeHours": 24,
     "ValidateSqlBackups": true,

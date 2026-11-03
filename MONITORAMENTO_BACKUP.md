@@ -74,6 +74,31 @@ Mantenha no restante da configuracao os caminhos locais de `InovaFarmaRoot`, `Se
 
 `Cnpj`, `NomeLoja` e `Responsavel` sao usados para pesquisa e filtragem no painel. O CNPJ pode ser informado com ou sem pontuacao.
 
+### Vincular terminais a um servidor
+
+Quando o suporte ja tiver liberado o acesso do servidor aos terminais, edite o `monitorar_backups.config.json` do servidor e informe um subgrupo e os terminais que pertencem a ele:
+
+```json
+"SubgrupoId": "loja-central-servidor-01",
+"SubgrupoNome": "Loja Central - servidor principal",
+"Terminais": [
+  {
+    "Id": "terminal-01",
+    "Nome": "Terminal 01",
+    "Caminho": "\\\\TERMINAL01\\Backups"
+  },
+  {
+    "Id": "terminal-02",
+    "Nome": "Terminal 02",
+    "Caminho": "\\\\TERMINAL02\\Backups"
+  }
+]
+```
+
+Use um objeto para cada terminal. Para um único terminal, mantenha apenas um objeto na lista. O `Caminho` deve ser uma pasta que o servidor consiga acessar, normalmente um compartilhamento UNC. Depois de salvar, execute o monitor uma vez ou aguarde a tarefa agendada. O painel central exibira o subgrupo, os terminais e o estado de cada replicacao.
+
+`ReplicationPaths` continua aceito para configuracoes antigas, mas `Terminais` e recomendado porque permite identificar cada terminal pelo nome.
+
 Para evitar preencher esses dados manualmente, copie os arquivos do projeto para o cliente e execute apenas este comando como administrador:
 
 ```powershell

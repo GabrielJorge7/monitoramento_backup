@@ -139,6 +139,24 @@ A tela permite pesquisar por aproximacao usando:
 Exemplo:
 Se o CNPJ for 12345678000199, pesquisar por 123 encontra esse cliente.
 
+============================================================
+6. COMO VINCULAR TERMINAIS AO SERVIDOR
+============================================================
+
+Depois que o suporte liberar o acesso de rede, edite o arquivo monitorar_backups.config.json no servidor e inclua:
+
+"SubgrupoId": "loja-central-servidor-01",
+"SubgrupoNome": "Loja Central - servidor principal",
+"Terminais": [
+  {
+    "Id": "terminal-01",
+    "Nome": "Terminal 01",
+    "Caminho": "\\\\TERMINAL01\\Backups"
+  }
+]
+
+Para dois ou mais terminais, adicione mais objetos dentro de Terminais. O campo Caminho deve apontar para a pasta compartilhada de cada terminal. O painel central exibira o subgrupo e o estado de cada terminal.
+
 Tambem e possivel filtrar por status:
 
 - OK

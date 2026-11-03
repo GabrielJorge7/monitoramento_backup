@@ -90,6 +90,9 @@
         .admin-form label { margin: 0; }
         .admin-users { margin-top: 16px; width: 100%; border-collapse: collapse; font: 13px "Segoe UI", sans-serif; }
         .admin-users th, .admin-users td { padding: 9px; border-bottom: 1px solid var(--line); text-align: left; }
+        .terminal-list { margin-bottom: 22px; padding: 16px; background: #eaf2f0; border: 1px solid var(--line); font: 13px/1.5 "Segoe UI", sans-serif; }
+        .terminal-list strong { color: var(--ink); }
+        .terminal-list ul { margin: 8px 0 0; padding-left: 20px; }
         @media (max-width: 800px) { .admin-form { grid-template-columns: 1fr 1fr; } }
         .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
         table { width: 100%; border-collapse: collapse; min-width: 760px; }
@@ -265,7 +268,7 @@
             const pageClients = clientList.slice(pageStart, pageStart + pageSize);
             resultCount.textContent = clientList.length ? `${clientList.length} de ${allClients.length} cliente(s)` : "";
             if (!clientList.length) { clients.innerHTML = `<div class="empty">${message}</div>`; return; }
-            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Geral</th><th>Service</th><th>Manual</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td><span class="badge ${statusClass(client.StatusService)}">${escapeHtml(statusLabel(client.StatusService))}</span></td><td><span class="badge ${statusClass(client.StatusManual)}">${escapeHtml(statusLabel(client.StatusManual))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
+            clients.innerHTML = `<table><thead><tr><th>Loja</th><th>Subgrupo</th><th>CNPJ</th><th>Responsável</th><th>Servidor</th><th>Geral</th><th>Service</th><th>Manual</th><th>Ultimo backup</th><th>Ultimo contato</th></tr></thead><tbody>${pageClients.map(client => `<tr data-client-id="${escapeHtml(client.ClienteId)}" tabindex="0" style="cursor:pointer"><td class="filename">${escapeHtml(client.NomeLoja || client.ClienteNome || client.ClienteId)}</td><td>${escapeHtml(client.SubgrupoNome || client.SubgrupoId || "-")}</td><td>${escapeHtml(client.Cnpj || "-")}</td><td>${escapeHtml(client.Responsavel || "-")}</td><td>${escapeHtml(client.Servidor)}</td><td><span class="badge ${statusClass(client.Status)}">${escapeHtml(statusLabel(client.Status))}</span></td><td><span class="badge ${statusClass(client.StatusService)}">${escapeHtml(statusLabel(client.StatusService))}</span></td><td><span class="badge ${statusClass(client.StatusManual)}">${escapeHtml(statusLabel(client.StatusManual))}</span></td><td>${formatDate(client.UltimoBackup)} <small>(${formatAge(client.IdadeUltimoBackupHoras)})</small></td><td>${formatDate(client.UltimoContato)}</td></tr>`).join("")}</tbody></table><div class="pagination"><button id="previous-page" type="button" ${currentPage === 1 ? "disabled" : ""}>Anterior</button><span class="page-label">Pagina ${currentPage} de ${totalPages}</span><button id="next-page" type="button" ${currentPage === totalPages ? "disabled" : ""}>Proxima</button></div>`;
             clients.querySelectorAll("tr[data-client-id]").forEach(row => {
                 row.addEventListener("click", () => loadClient(row.dataset.clientId));
                 row.addEventListener("keydown", event => { if (event.key === "Enter") loadClient(row.dataset.clientId); });
@@ -283,7 +286,7 @@
             }
             const normalizedSearch = search.replace(/[^\p{L}\p{N}]/gu, "");
             const filtered = allClients.filter(client => {
-                const searchable = [client.Cnpj, client.NomeLoja, client.ClienteNome, client.Responsavel, client.Servidor, client.ClienteId].join(" ").toLocaleLowerCase("pt-BR");
+                const searchable = [client.Cnpj, client.NomeLoja, client.ClienteNome, client.Responsavel, client.Servidor, client.ClienteId, client.SubgrupoId, client.SubgrupoNome].join(" ").toLocaleLowerCase("pt-BR");
                 const normalizedSearchable = searchable.replace(/[^\p{L}\p{N}]/gu, "");
                 return (!search || searchable.includes(search) || normalizedSearchable.includes(normalizedSearch)) && (!selectedStatus || client.Status === selectedStatus);
             });
@@ -297,13 +300,16 @@
 
         function renderFiles(report) {
             detailTitle.textContent = `Detalhes: ${report.ClienteNome || report.ClienteId || report.Servidor}`;
+            const terminals = Array.isArray(report.Terminais) ? report.Terminais : [];
+            const terminalMarkup = `<div class="terminal-list"><strong>Subgrupo: ${escapeHtml(report.SubgrupoNome || report.SubgrupoId || "não informado")}</strong>${terminals.length ? `<ul>${terminals.map(terminal => `<li>${escapeHtml(terminal.Nome || terminal.Id || terminal.Caminho)}: ${escapeHtml(terminal.Caminho || "-")}</li>`).join("")}</ul>` : "<div>Nenhum terminal configurado neste servidor.</div>"}</div>`;
             const records = Array.isArray(report.Arquivos) ? report.Arquivos : [];
-            if (!records.length) { files.innerHTML = '<div class="empty">Nenhum backup encontrado.</div>'; return; }
+            if (!records.length) { files.innerHTML = terminalMarkup + '<div class="empty">Nenhum backup encontrado.</div>'; return; }
             const renderSourceTable = (title, sourceRecords) => {
                 if (!sourceRecords.length) return "";
                 return `<section class="source-section"><h3 class="source-heading">${title}<span class="source-count">${sourceRecords.length} arquivo(s)</span></h3><table><thead><tr><th>Arquivo</th><th>Tipo</th><th>Alterado em</th><th>Tamanho</th><th>Validacao</th><th>Replicacao</th></tr></thead><tbody>${sourceRecords.map(record => {
-                    const replication = Array.isArray(record.Replicacoes) ? record.Replicacoes[0] : null;
-                    return `<tr><td class="filename">${escapeHtml(record.Nome)}</td><td>${escapeHtml(record.Tipo)}</td><td>${formatDate(record.UltimaAlteracao)}</td><td>${formatBytes(record.TamanhoBytes)}</td><td><span class="badge ${statusClass(record.Validacao)}">${escapeHtml(statusLabel(record.Validacao))}</span></td><td><span class="badge ${statusClass(replication?.Status)}">${escapeHtml(statusLabel(replication?.Status || "-"))}</span></td></tr>`;
+                    const replications = Array.isArray(record.Replicacoes) ? record.Replicacoes : [];
+                    const replicationMarkup = replications.map(replication => `<div>${escapeHtml(replication.TerminalNome || replication.Destino || "Terminal")}: <span class="badge ${statusClass(replication.Status)}">${escapeHtml(statusLabel(replication.Status))}</span></div>`).join("");
+                    return `<tr><td class="filename">${escapeHtml(record.Nome)}</td><td>${escapeHtml(record.Tipo)}</td><td>${formatDate(record.UltimaAlteracao)}</td><td>${formatBytes(record.TamanhoBytes)}</td><td><span class="badge ${statusClass(record.Validacao)}">${escapeHtml(statusLabel(record.Validacao))}</span></td><td>${replicationMarkup || "-"}</td></tr>`;
                 }).join("")}</tbody></table></section>`;
             };
             const serviceRecords = records.filter(record => record.Origem === "service");
@@ -311,7 +317,7 @@
             const otherRecords = records.filter(record => record.Origem !== "service" && record.Origem !== "manual");
             const serviceWarning = report.ComparativoTamanhoService?.Reduziu ? " | ALERTA: ultimo menor que anterior" : "";
             const manualWarning = report.ComparativoTamanhoManual?.Reduziu ? " | ALERTA: ultimo menor que anterior" : "";
-            files.innerHTML = renderSourceTable(`Backups do InovaFarma Service${serviceWarning}`, serviceRecords) + renderSourceTable(`Backups manuais${manualWarning}`, manualRecords) + renderSourceTable("Outras origens", otherRecords);
+            files.innerHTML = terminalMarkup + renderSourceTable(`Backups do InovaFarma Service${serviceWarning}`, serviceRecords) + renderSourceTable(`Backups manuais${manualWarning}`, manualRecords) + renderSourceTable("Outras origens", otherRecords);
         }
 
         async function loadClient(clientId) {

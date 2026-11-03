@@ -6,6 +6,8 @@ param(
     [string]$Cnpj = "",
     [string]$NomeLoja = "",
     [string]$Responsavel = "",
+    [string]$SubgrupoId = "",
+    [string]$SubgrupoNome = "",
     [int]$IntervaloMinutos = 30,
     [switch]$NaoCriarTarefa,
     [switch]$Interface
@@ -146,6 +148,9 @@ $config = [ordered]@{
     Cnpj = $Cnpj
     NomeLoja = if ($NomeLoja) { $NomeLoja } else { $resolvedClientName }
     Responsavel = $Responsavel
+    SubgrupoId = if ($SubgrupoId) { $SubgrupoId } else { $clientId }
+    SubgrupoNome = if ($SubgrupoNome) { $SubgrupoNome } else { if ($NomeLoja) { $NomeLoja } else { $resolvedClientName } }
+    Terminais = @()
     CentralApiUrl = $CentralApiUrl.TrimEnd("/")
     CentralApiToken = $CentralApiToken
     InovaFarmaRoot = $inovaRoot
