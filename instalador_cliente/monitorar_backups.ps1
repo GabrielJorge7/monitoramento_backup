@@ -1,0 +1,331 @@
+$ErrorActionPreference = "Stop"
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$configPath = Join-Path $scriptRoot "monitorar_backups.config.json"
+$defaultReportDirectory = Join-Path $env:ProgramData "InovaFarma\MonitoramentoBackup"
+
+function Get-Config {
+    if (-not (Test-Path -LiteralPath $configPath)) {
+        throw "Arquivo de configuracao nao encontrado: $configPath"
+    }
+
+    return Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+}
+
+function Get-BackupRoots([object]$config) {
+    $roots = [System.Collections.Generic.List[object]]::new()
+
+    function Add-Root([string]$path, [string]$origin) {
+        if ($path -and (Test-Path -LiteralPath $path -PathType Container) -and -not @($roots | Where-Object Path -eq $path)) {
+            [void]$roots.Add([PSCustomObject]@{ Path = $path; Origem = $origin })
+        }
+    }
+
+    $serviceRoot = if ($config.ServiceBackupRoot) { $config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
+    Add-Root $serviceRoot "service"
+
+    if ($config.BackupRoot) {
+        Add-Root $config.BackupRoot "manual"
+    }
+
+    foreach ($manualRoot in @($config.ManualBackupRoots)) {
+        Add-Root ([string]$manualRoot) "manual"
+    }
+
+    if ($roots.Count -eq 0) {
+        $destinationFile = Join-Path $config.InovaFarmaRoot "DestinoBackup.txt"
+        if (Test-Path -LiteralPath $destinationFile) {
+            Add-Root ((Get-Content -LiteralPath $destinationFile -Raw).Trim()) "manual"
+        }
+    }
+
+    if ($roots.Count -eq 0) {
+        $configuredServiceRoot = if ($config.ServiceBackupRoot) { [string]$config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
+        return @([PSCustomObject]@{ Path = $configuredServiceRoot; Origem = "service" })
+    }
+
+    return $roots.ToArray()
+}
+
+function Find-Executable([string]$name, [string[]]$fallbacks) {
+    $command = Get-Command $name -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    foreach ($fallback in $fallbacks) {
+        if (Test-Path -LiteralPath $fallback -PathType Leaf) {
+            return $fallback
+        }
+    }
+
+    return $null
+}
+
+function Test-CompressedBackup([System.IO.FileInfo]$file, [string]$sevenZipPath) {
+    if (-not $sevenZipPath) {
+        return @{ Status = "nao_verificado"; Detalhe = "7za.exe nao encontrado" }
+    }
+
+    $output = @(& $sevenZipPath t $file.FullName -y 2>&1 | ForEach-Object { $_.ToString() })
+    $text = $output -join "`n"
+    $hasSuccess = $text -match "Everything is Ok"
+    $hasFatalError = $text -match "Data Error|CRC Failed|Unexpected end|Can not open the file as"
+
+    if ($hasSuccess -and -not ($hasFatalError -and $text -notmatch "file is open as")) {
+        return @{ Status = "ok"; Detalhe = ($output | Select-Object -Last 5) -join " | " }
+    }
+
+    return @{ Status = "invalido"; Detalhe = ($output | Select-Object -Last 8) -join " | " }
+}
+
+function Test-SqlBackup([System.IO.FileInfo]$file, [string]$sqlServer, [string]$osqlPath) {
+    if (-not $osqlPath) {
+        return @{ Status = "nao_verificado"; Detalhe = "osql.exe nao encontrado" }
+    }
+
+    $escapedPath = $file.FullName.Replace("'", "''")
+    $output = @(& $osqlPath -S $sqlServer -E -Q "RESTORE VERIFYONLY FROM DISK = N'$escapedPath' WITH CHECKSUM" -b 2>&1 | ForEach-Object { $_.ToString() })
+    $text = $output -join "`n"
+    if ($LASTEXITCODE -eq 0 -and $text -match "backup set on file .* is valid") {
+        return @{ Status = "ok"; Detalhe = ($output | Select-Object -Last 4) -join " | " }
+    }
+
+    if ($text -match "does not\s+contain checksum information") {
+        $output = @(& $osqlPath -S $sqlServer -E -Q "RESTORE VERIFYONLY FROM DISK = N'$escapedPath'" -b 2>&1 | ForEach-Object { $_.ToString() })
+        $text = $output -join "`n"
+        if ($LASTEXITCODE -eq 0 -and $text -match "backup set on file .* is valid") {
+            return @{ Status = "ok"; Detalhe = "Valido; backup original nao possui checksum. " + (($output | Select-Object -Last 3) -join " | ") }
+        }
+    }
+
+    return @{ Status = "invalido"; Detalhe = ($output | Select-Object -Last 8) -join " | " }
+}
+
+function Get-TerminalTargets([object]$config) {
+    $terminals = @($config.Terminais | Where-Object { $_ -and $_.Caminho -and $_.Caminho.ToString().Trim() })
+    if ($terminals.Count -gt 0) {
+        return @($terminals | ForEach-Object {
+            [PSCustomObject]@{
+                Id = if ($_.Id) { [string]$_.Id } else { [string]$_.Caminho }
+                Nome = if ($_.Nome) { [string]$_.Nome } else { [string]$_.Caminho }
+                Caminho = [string]$_.Caminho
+            }
+        })
+    }
+
+    return @($config.ReplicationPaths | Where-Object { $_ -and $_.ToString().Trim() } | ForEach-Object {
+        [PSCustomObject]@{ Id = [string]$_; Nome = [string]$_; Caminho = [string]$_ }
+    })
+}
+
+function Get-ReplicationResult([System.IO.FileInfo]$source, [object]$config) {
+    $terminals = @(Get-TerminalTargets $config)
+    if ($terminals.Count -eq 0) {
+        return @(@{ Destino = $null; Status = "nao_configurado"; Detalhe = "Nenhum terminal configurado" })
+    }
+
+    $results = @()
+    foreach ($terminal in $terminals) {
+        $target = Join-Path $terminal.Caminho $source.Name
+        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "ausente"; Detalhe = $target }
+            continue
+        }
+
+        $targetFile = Get-Item -LiteralPath $target
+        if ($targetFile.Length -eq $source.Length) {
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "ok"; Detalhe = "Nome e tamanho conferem" }
+        } else {
+            $results += @{ TerminalId = $terminal.Id; TerminalNome = $terminal.Nome; Destino = $terminal.Caminho; Status = "incompleto"; Detalhe = "Tamanho diferente" }
+        }
+    }
+
+    return $results
+}
+
+function Get-CloudTargets([object]$config) {
+    return @($config.CloudTargets | Where-Object { $_ -and $_.Provider -and $_.LocalPath })
+}
+
+function Get-CloudReplicationResult([System.IO.FileInfo]$source, [object]$config) {
+    $targets = @(Get-CloudTargets $config)
+    if ($targets.Count -eq 0) {
+        return @(@{ CloudId = $null; CloudNome = $null; Provider = $null; Status = "nao_configurado"; Detalhe = "Nenhuma nuvem configurada" })
+    }
+
+    $results = @()
+    foreach ($cloud in $targets) {
+        try {
+            $cloudRoot = [string]$cloud.LocalPath
+            if (-not (Test-Path -LiteralPath $cloudRoot -PathType Container)) {
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Pasta sincronizada nao encontrada: $cloudRoot" }
+                continue
+            }
+
+            $target = Join-Path $cloudRoot $source.Name
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Arquivo nao encontrado na nuvem" }
+            } else {
+                $targetFile = Get-Item -LiteralPath $target
+                if ($targetFile.Length -ne $source.Length) {
+                    $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "incompleto"; Detalhe = "Tamanho diferente: nuvem=$($targetFile.Length), origem=$($source.Length)" }
+                } else {
+                    $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ok"; Detalhe = "Arquivo encontrado na pasta sincronizada; tamanho confere"; EnviadoEm = $targetFile.LastWriteTime }
+                }
+            }
+        } catch {
+            $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "erro"; Detalhe = $_.Exception.Message }
+        }
+    }
+
+    return $results
+}
+
+function Get-BackupRecord([System.IO.FileInfo]$file, [object]$config, [string]$sevenZipPath, [string]$osqlPath, [string]$origin) {
+    $validation = switch ($file.Extension.ToLowerInvariant()) {
+        ".bak" {
+            if ($config.ValidateSqlBackups) {
+                Test-SqlBackup $file $config.SqlServer $osqlPath
+            } else {
+                @{ Status = "nao_verificado"; Detalhe = "Validacao SQL desativada" }
+            }
+        }
+        ".zip" { Test-CompressedBackup $file $sevenZipPath }
+        ".7z" { Test-CompressedBackup $file $sevenZipPath }
+        ".rar" { Test-CompressedBackup $file $sevenZipPath }
+        ".001" { Test-CompressedBackup $file $sevenZipPath }
+        default { @{ Status = "nao_verificado"; Detalhe = "Extensao nao suportada" } }
+    }
+
+    [PSCustomObject]@{
+        Nome = $file.Name
+        Caminho = $file.FullName
+        Tipo = if ($file.Name -match "\.(zip|7z|rar)\.\d{3}$") { $Matches[1].ToUpperInvariant() + " segmentado" } else { $file.Extension.TrimStart('.').ToUpperInvariant() }
+        Origem = $origin
+        UltimaAlteracao = $file.LastWriteTime
+        TamanhoBytes = $file.Length
+        Validacao = $validation.Status
+        DetalheValidacao = $validation.Detalhe
+        Replicacoes = @(Get-ReplicationResult $file $config)
+        Nuvem = @(Get-CloudReplicationResult $file $config)
+    }
+}
+
+function Get-SourceStatus([object[]]$sourceRecords, [double]$maxAgeHours) {
+    $records = @($sourceRecords)
+    if ($records.Count -eq 0) { return "sem_backup" }
+
+    $latest = $records | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1
+    $ageHours = ((Get-Date) - [datetime]$latest.UltimaAlteracao).TotalHours
+    if ($ageHours -gt $maxAgeHours) { return "atrasado" }
+    if ($latest.Validacao -eq "invalido") { return "invalido" }
+    if ($latest.Validacao -eq "nao_verificado") { return "nao_verificado" }
+    $previous = $records | Sort-Object UltimaAlteracao -Descending | Select-Object -Skip 1 -First 1
+    if ($previous -and $latest.TamanhoBytes -lt $previous.TamanhoBytes) { return "suspeito_tamanho" }
+    return "ok"
+}
+
+function Get-SizeComparison([object[]]$sourceRecords) {
+    $ordered = @($sourceRecords | Sort-Object UltimaAlteracao -Descending)
+    if ($ordered.Count -lt 2) { return [PSCustomObject]@{ AtualBytes = if ($ordered) { $ordered[0].TamanhoBytes } else { $null }; AnteriorBytes = $null; Reduziu = $false } }
+    return [PSCustomObject]@{ AtualBytes = $ordered[0].TamanhoBytes; AnteriorBytes = $ordered[1].TamanhoBytes; Reduziu = $ordered[0].TamanhoBytes -lt $ordered[1].TamanhoBytes }
+}
+
+$config = Get-Config
+$backupRoots = @(Get-BackupRoots $config)
+$serviceRootPath = if ($config.ServiceBackupRoot) { [string]$config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
+$serviceRootAvailable = Test-Path -LiteralPath $serviceRootPath -PathType Container
+$sevenZipPath = if ($config.SevenZipPath -and (Test-Path -LiteralPath $config.SevenZipPath)) { $config.SevenZipPath } else { $null }
+$osqlPath = Find-Executable "osql.exe" @(
+    "C:\Program Files (x86)\Microsoft SQL Server\140\Tools\Binn\OSQL.EXE",
+    "C:\Program Files (x86)\Microsoft SQL Server\Client SDK\ODBC\130\Tools\Binn\SQLCMD.EXE"
+)
+
+$extensions = @(".bak", ".zip", ".7z", ".rar", ".001")
+$fileEntries = @()
+foreach ($backupRoot in $backupRoots) {
+    if (-not (Test-Path -LiteralPath $backupRoot.Path -PathType Container)) { continue }
+    $files = @(Get-ChildItem -LiteralPath $backupRoot.Path -File -Force -Recurse -ErrorAction Stop | Where-Object {
+        $isSegmentedArchive = $_.Name -match "\.(zip|7z|rar)\.\d{3}$"
+        (($extensions -contains $_.Extension.ToLowerInvariant()) -or $isSegmentedArchive) -and $_.Name -like $config.BackupNamePattern
+    })
+    foreach ($file in $files) {
+        $fileEntries += [PSCustomObject]@{ File = $file; Origem = $backupRoot.Origem }
+    }
+}
+$records = @($fileEntries | Sort-Object { $_.File.LastWriteTime } -Descending | ForEach-Object {
+    Get-BackupRecord $_.File $config $sevenZipPath $osqlPath $_.Origem
+})
+
+$now = Get-Date
+$serviceRecords = @($records | Where-Object Origem -eq "service")
+$manualRecords = @($records | Where-Object Origem -eq "manual")
+$statusService = if ($serviceRootAvailable) { Get-SourceStatus $serviceRecords ([double]$config.MaxAgeHours) } else { "indisponivel" }
+$statusManual = Get-SourceStatus $manualRecords ([double]$config.MaxAgeHours)
+$sizeService = Get-SizeComparison $serviceRecords
+$sizeManual = Get-SizeComparison $manualRecords
+$latest = $serviceRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1
+if (-not $latest) { $latest = $manualRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1 }
+$ageHours = if ($latest) { [math]::Round(($now - [datetime]$latest.UltimaAlteracao).TotalHours, 2) } else { $null }
+$overallStatus = $statusService
+$maxReportFiles = if ($config.MaxReportFiles) { [math]::Max(1, [int]$config.MaxReportFiles) } else { 200 }
+$reportRecords = @($records | Select-Object -First $maxReportFiles)
+
+$report = [PSCustomObject]@{
+    ClienteId = if ($config.ClientId) { $config.ClientId } else { $env:COMPUTERNAME }
+    ClienteNome = if ($config.ClientName) { $config.ClientName } else { $env:COMPUTERNAME }
+    Cnpj = if ($config.Cnpj) { $config.Cnpj } else { "" }
+    NomeLoja = if ($config.NomeLoja) { $config.NomeLoja } else { if ($config.ClientName) { $config.ClientName } else { $env:COMPUTERNAME } }
+    Responsavel = if ($config.Responsavel) { $config.Responsavel } else { "" }
+    GeradoEm = $now
+    Servidor = $env:COMPUTERNAME
+    DestinoAnalisado = (($backupRoots | ForEach-Object { $_.Path }) -join "; ")
+    Status = $overallStatus
+    StatusService = $statusService
+    StatusManual = $statusManual
+    SubgrupoId = if ($config.SubgrupoId) { [string]$config.SubgrupoId } else { "" }
+    SubgrupoNome = if ($config.SubgrupoNome) { [string]$config.SubgrupoNome } else { [string]$config.ClientName }
+    Terminais = @(Get-TerminalTargets $config)
+    ComparativoTamanhoService = $sizeService
+    ComparativoTamanhoManual = $sizeManual
+    ArquivosInvalidos = @($records | Where-Object Validacao -eq "invalido").Count
+    ArquivosNaoVerificados = @($records | Where-Object Validacao -eq "nao_verificado").Count
+    UltimoBackup = if ($latest) { $latest.UltimaAlteracao } else { $null }
+    IdadeUltimoBackupHoras = $ageHours
+    BackupsEncontrados = $records.Count
+    OrigemAutomaticoManual = "Nao e possivel distinguir automaticamente nesta etapa; o servico nao grava essa informacao no nome do arquivo."
+    Arquivos = $reportRecords
+    ArquivosAnalisados = $records.Count
+    ArquivosLimitados = $records.Count -gt $reportRecords.Count
+}
+
+$reportDirectory = if ($config.ReportDirectory) { $config.ReportDirectory } else { $defaultReportDirectory }
+New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
+$reportJson = $report | ConvertTo-Json -Depth 8
+$reportJson | Set-Content -LiteralPath (Join-Path $reportDirectory "ultimo-relatorio.json") -Encoding UTF8
+
+if ($config.CentralApiUrl) {
+    try {
+        $headers = @{}
+        if ($config.CentralApiToken) {
+            $headers["X-Monitor-Token"] = $config.CentralApiToken
+        }
+        Invoke-RestMethod -Uri $config.CentralApiUrl -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($reportJson)) -ContentType "application/json; charset=utf-8" -Headers $headers -TimeoutSec 20 | Out-Null
+        Write-Output "Relatorio enviado ao central: $($config.CentralApiUrl)"
+    } catch {
+        Write-Warning "Nao foi possivel enviar o relatorio ao central: $($_.Exception.Message)"
+    }
+} else {
+    Write-Warning "CentralApiUrl nao configurada; o relatorio foi salvo apenas neste computador."
+}
+
+Write-Output "Status: $overallStatus"
+Write-Output "Destino: $(($backupRoots | ForEach-Object { $_.Path }) -join '; ')"
+Write-Output "Arquivos encontrados: $($records.Count)"
+if ($latest) {
+    Write-Output "Ultimo backup: $($latest.Nome) - $($latest.UltimaAlteracao)"
+}
+foreach ($record in $records) {
+    Write-Output "$($record.Validacao) | $($record.Tipo) | $($record.Nome)"
+}
