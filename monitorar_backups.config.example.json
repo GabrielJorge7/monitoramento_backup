@@ -26,6 +26,7 @@
     ],
     "CloudTargets": [],
     "BackupNamePattern": "INOVAFARMA*",
+    "MaxReportFiles": 200,
     "MaxAgeHours": 24,
     "ValidateSqlBackups": true,
     "SqlServer": ".\\SQL2016",

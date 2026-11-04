@@ -269,6 +269,8 @@ $latest = $serviceRecords | Sort-Object UltimaAlteracao -Descending | Select-Obj
 if (-not $latest) { $latest = $manualRecords | Sort-Object UltimaAlteracao -Descending | Select-Object -First 1 }
 $ageHours = if ($latest) { [math]::Round(($now - [datetime]$latest.UltimaAlteracao).TotalHours, 2) } else { $null }
 $overallStatus = $statusService
+$maxReportFiles = if ($config.MaxReportFiles) { [math]::Max(1, [int]$config.MaxReportFiles) } else { 200 }
+$reportRecords = @($records | Select-Object -First $maxReportFiles)
 
 $report = [PSCustomObject]@{
     ClienteId = if ($config.ClientId) { $config.ClientId } else { $env:COMPUTERNAME }
@@ -293,7 +295,9 @@ $report = [PSCustomObject]@{
     IdadeUltimoBackupHoras = $ageHours
     BackupsEncontrados = $records.Count
     OrigemAutomaticoManual = "Nao e possivel distinguir automaticamente nesta etapa; o servico nao grava essa informacao no nome do arquivo."
-    Arquivos = $records
+    Arquivos = $reportRecords
+    ArquivosAnalisados = $records.Count
+    ArquivosLimitados = $records.Count -gt $reportRecords.Count
 }
 
 $reportDirectory = if ($config.ReportDirectory) { $config.ReportDirectory } else { $defaultReportDirectory }
