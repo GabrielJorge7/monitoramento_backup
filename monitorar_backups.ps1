@@ -144,6 +144,44 @@ function Get-ReplicationResult([System.IO.FileInfo]$source, [object]$config) {
     return $results
 }
 
+function Get-CloudTargets([object]$config) {
+    return @($config.CloudTargets | Where-Object { $_ -and $_.Provider -and $_.LocalPath })
+}
+
+function Get-CloudReplicationResult([System.IO.FileInfo]$source, [object]$config) {
+    $targets = @(Get-CloudTargets $config)
+    if ($targets.Count -eq 0) {
+        return @(@{ CloudId = $null; CloudNome = $null; Provider = $null; Status = "nao_configurado"; Detalhe = "Nenhuma nuvem configurada" })
+    }
+
+    $results = @()
+    foreach ($cloud in $targets) {
+        try {
+            $cloudRoot = [string]$cloud.LocalPath
+            if (-not (Test-Path -LiteralPath $cloudRoot -PathType Container)) {
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Pasta sincronizada nao encontrada: $cloudRoot" }
+                continue
+            }
+
+            $target = Join-Path $cloudRoot $source.Name
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Arquivo nao encontrado na nuvem" }
+            } else {
+                $targetFile = Get-Item -LiteralPath $target
+                if ($targetFile.Length -ne $source.Length) {
+                    $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "incompleto"; Detalhe = "Tamanho diferente: nuvem=$($targetFile.Length), origem=$($source.Length)" }
+                } else {
+                    $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ok"; Detalhe = "Arquivo encontrado na pasta sincronizada; tamanho confere"; EnviadoEm = $targetFile.LastWriteTime }
+                }
+            }
+        } catch {
+            $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "erro"; Detalhe = $_.Exception.Message }
+        }
+    }
+
+    return $results
+}
+
 function Get-BackupRecord([System.IO.FileInfo]$file, [object]$config, [string]$sevenZipPath, [string]$osqlPath, [string]$origin) {
     $validation = switch ($file.Extension.ToLowerInvariant()) {
         ".bak" {
@@ -170,6 +208,7 @@ function Get-BackupRecord([System.IO.FileInfo]$file, [object]$config, [string]$s
         Validacao = $validation.Status
         DetalheValidacao = $validation.Detalhe
         Replicacoes = @(Get-ReplicationResult $file $config)
+        Nuvem = @(Get-CloudReplicationResult $file $config)
     }
 }
 

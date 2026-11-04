@@ -24,6 +24,7 @@
             "Caminho": "\\\\TERMINAL02\\Backups"
         }
     ],
+    "CloudTargets": [],
     "BackupNamePattern": "INOVAFARMA*",
     "MaxAgeHours": 24,
     "ValidateSqlBackups": true,

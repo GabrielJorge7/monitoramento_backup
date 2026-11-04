@@ -11,6 +11,7 @@ O script `monitorar_backups.ps1` verifica o servidor local sem alterar o `InovaF
 - Integridade de arquivos compactados com `C:\InovaFarma\InovaFarmaAPI\7z\7za.exe`.
 - Idade do backup mais recente.
 - Existencia e tamanho dos arquivos em terminais configurados.
+- Existencia e tamanho dos arquivos em OneDrive e Google Drive configurados por API.
 
 ## Executar
 
@@ -98,6 +99,33 @@ Quando o suporte ja tiver liberado o acesso do servidor aos terminais, edite o `
 Use um objeto para cada terminal. Para um único terminal, mantenha apenas um objeto na lista. O `Caminho` deve ser uma pasta que o servidor consiga acessar, normalmente um compartilhamento UNC. Depois de salvar, execute o monitor uma vez ou aguarde a tarefa agendada. O painel central exibira o subgrupo, os terminais e o estado de cada replicacao.
 
 `ReplicationPaths` continua aceito para configuracoes antigas, mas `Terminais` e recomendado porque permite identificar cada terminal pelo nome.
+
+### Verificar envio para a nuvem
+
+O monitor verifica, sem fazer upload ou apagar arquivos, a pasta local sincronizada pelo OneDrive, Google Drive ou MEGA. A consulta procura o mesmo nome do backup e compara o tamanho. Essa abordagem depende do aplicativo de sincronizacao ter concluido o upload; ela nao confirma diretamente o estado interno da nuvem.
+
+O instalador grafico possui a secao `Nuvem (opcional)`. Se a loja nao usa nuvem, selecione `Nenhuma` ou deixe a configuracao vazia. Nesse caso, o instalador grava `CloudTargets: []` e o monitor continua funcionando normalmente. Se escolher um provedor, informe a pasta local que o aplicativo mantem sincronizada.
+
+Exemplo de configuracao:
+
+```json
+"CloudTargets": [
+  {
+    "Id": "onedrive-loja",
+    "Nome": "OneDrive da loja",
+    "Provider": "OneDrive",
+    "LocalPath": "C:\\Users\\Public\\OneDrive\\Backups\\InovaFarma"
+  },
+  {
+    "Id": "googledrive-loja",
+    "Nome": "Google Drive da loja",
+    "Provider": "GoogleDrive",
+    "LocalPath": "C:\\Users\\Public\\Google Drive\\Backups\\InovaFarma"
+  }
+]
+```
+
+Os estados aparecem no detalhe de cada arquivo como `OK`, `AUSENTE`, `INCOMPLETO`, `NÃO CONFIGURADO` ou `ERRO`. `OK` significa que o arquivo existe na pasta sincronizada e tem o mesmo tamanho da origem. `AUSENTE` pode significar que o upload ainda não terminou ou que a sincronizacao esta com problema.
 
 Para evitar preencher esses dados manualmente, copie os arquivos do projeto para o cliente e execute apenas este comando como administrador:
 

@@ -8,6 +8,8 @@ param(
     [string]$Responsavel = "",
     [string]$SubgrupoId = "",
     [string]$SubgrupoNome = "",
+    [string]$CloudProvider = "",
+    [string]$CloudLocalPath = "",
     [int]$IntervaloMinutos = 30,
     [switch]$NaoCriarTarefa,
     [switch]$Interface
@@ -27,13 +29,103 @@ $destinationFile = Join-Path $inovaRoot "DestinoBackup.txt"
 $powershellPath = (Get-Command powershell.exe).Source
 $backupRoot = ""
 
+function Show-CloudSetupForm {
+    $cloudForm = New-Object System.Windows.Forms.Form
+    $cloudForm.Text = "Configurar nuvem (opcional)"
+    $cloudForm.Size = New-Object System.Drawing.Size(560, 430)
+    $cloudForm.StartPosition = "CenterParent"
+    $cloudForm.FormBorderStyle = "FixedDialog"
+    $cloudForm.MaximizeBox = $false
+
+    $title = New-Object System.Windows.Forms.Label
+    $title.Text = "Verificacao de backup na nuvem"
+    $title.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+    $title.Location = New-Object System.Drawing.Point(24, 20)
+    $title.AutoSize = $true
+    $cloudForm.Controls.Add($title)
+
+    $hint = New-Object System.Windows.Forms.Label
+    $hint.Text = "Deixe como Nenhuma se a loja nao usa nuvem. Use a pasta sincronizada local."
+    $hint.Location = New-Object System.Drawing.Point(24, 54)
+    $hint.AutoSize = $true
+    $cloudForm.Controls.Add($hint)
+
+    $providerLabel = New-Object System.Windows.Forms.Label
+    $providerLabel.Text = "Provedor"
+    $providerLabel.Location = New-Object System.Drawing.Point(24, 92)
+    $providerLabel.AutoSize = $true
+    $cloudForm.Controls.Add($providerLabel)
+    $provider = New-Object System.Windows.Forms.ComboBox
+    $provider.Location = New-Object System.Drawing.Point(190, 88)
+    $provider.Size = New-Object System.Drawing.Size(330, 24)
+    $provider.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    @("Nenhuma", "OneDrive", "GoogleDrive", "MEGA") | ForEach-Object { [void]$provider.Items.Add($_) }
+    $provider.SelectedItem = if ($CloudProvider) { $CloudProvider } else { "Nenhuma" }
+    $cloudForm.Controls.Add($provider)
+
+    $fields = @(
+        @{ Key = "CloudLocalPath"; Label = "Pasta local sincronizada"; Value = $CloudLocalPath }
+    )
+    $controls = @{}
+    foreach ($fieldIndex in 0..($fields.Count - 1)) {
+        $field = $fields[$fieldIndex]
+        $fieldTop = 128 + ($fieldIndex * 40)
+        $label = New-Object System.Windows.Forms.Label
+        $label.Text = $field.Label
+        $label.Location = New-Object System.Drawing.Point(24, $fieldTop)
+        $label.AutoSize = $true
+        $cloudForm.Controls.Add($label)
+        $input = New-Object System.Windows.Forms.TextBox
+        $input.Location = New-Object System.Drawing.Point(190, ($fieldTop - 4))
+        $input.Size = New-Object System.Drawing.Size(330, 24)
+        $input.Text = [string]$field.Value
+        $cloudForm.Controls.Add($input)
+        $controls[$field.Key] = $input
+    }
+
+    $save = New-Object System.Windows.Forms.Button
+    $save.Text = "Salvar"
+    $save.Location = New-Object System.Drawing.Point(190, 310)
+    $save.Size = New-Object System.Drawing.Size(120, 34)
+    $save.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $cloudForm.Controls.Add($save)
+    $cloudForm.AcceptButton = $save
+    $cancel = New-Object System.Windows.Forms.Button
+    $cancel.Text = "Cancelar"
+    $cancel.Location = New-Object System.Drawing.Point(320, 310)
+    $cancel.Size = New-Object System.Drawing.Size(120, 34)
+    $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cloudForm.Controls.Add($cancel)
+    $cloudForm.CancelButton = $cancel
+
+    if ($cloudForm.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+    $selectedProvider = [string]$provider.SelectedItem
+    if ($selectedProvider -eq "Nenhuma") {
+        $script:CloudProvider = ""
+        $script:CloudTargets = @()
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($controls.CloudLocalPath.Text)) {
+        [System.Windows.Forms.MessageBox]::Show("Informe a pasta local sincronizada pela nuvem.", "Configuracao de nuvem", "OK", "Warning") | Out-Null
+        return
+    }
+    $script:CloudProvider = $selectedProvider
+    $script:CloudLocalPath = $controls.CloudLocalPath.Text.Trim()
+    $script:CloudTargets = @([ordered]@{
+        Id = ($selectedProvider.ToLowerInvariant() + "-loja")
+        Nome = $selectedProvider
+        Provider = $selectedProvider
+        LocalPath = $script:CloudLocalPath
+    })
+}
+
 function Show-SetupForm {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Instalar monitoramento de backups"
-    $form.Size = New-Object System.Drawing.Size(560, 510)
+    $form.Size = New-Object System.Drawing.Size(560, 600)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -84,16 +176,23 @@ function Show-SetupForm {
     $intervalInput.Value = $IntervaloMinutos
     $form.Controls.Add($intervalInput)
 
+    $cloudButton = New-Object System.Windows.Forms.Button
+    $cloudButton.Text = "Configurar nuvem (opcional)"
+    $cloudButton.Location = New-Object System.Drawing.Point(190, ($top + 40))
+    $cloudButton.Size = New-Object System.Drawing.Size(210, 30)
+    $cloudButton.Add_Click({ Show-CloudSetupForm })
+    $form.Controls.Add($cloudButton)
+
     $createTask = New-Object System.Windows.Forms.CheckBox
     $createTask.Text = "Criar tarefa agendada e executar agora"
     $createTask.Checked = -not $NaoCriarTarefa
-    $createTask.Location = New-Object System.Drawing.Point(190, ($top + 40))
+    $createTask.Location = New-Object System.Drawing.Point(190, ($top + 80))
     $createTask.AutoSize = $true
     $form.Controls.Add($createTask)
 
     $install = New-Object System.Windows.Forms.Button
     $install.Text = "Instalar"
-    $install.Location = New-Object System.Drawing.Point(190, ($top + 78))
+    $install.Location = New-Object System.Drawing.Point(190, ($top + 118))
     $install.Size = New-Object System.Drawing.Size(120, 34)
     $install.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $form.Controls.Add($install)
@@ -101,7 +200,7 @@ function Show-SetupForm {
 
     $cancel = New-Object System.Windows.Forms.Button
     $cancel.Text = "Cancelar"
-    $cancel.Location = New-Object System.Drawing.Point(320, ($top + 78))
+    $cancel.Location = New-Object System.Drawing.Point(320, ($top + 118))
     $cancel.Size = New-Object System.Drawing.Size(120, 34)
     $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $form.Controls.Add($cancel)
@@ -125,6 +224,16 @@ function Show-SetupForm {
 if ($Interface -or [string]::IsNullOrWhiteSpace($CentralApiUrl)) {
     if (-not (Show-SetupForm)) { exit 0 }
 }
+
+if (-not $CloudTargets -and $CloudProvider -and $CloudProvider -ne "Nenhuma") {
+    $CloudTargets = @([ordered]@{
+        Id = ($CloudProvider.ToLowerInvariant() + "-loja")
+        Nome = $CloudProvider
+        Provider = $CloudProvider
+        LocalPath = $CloudLocalPath
+    })
+}
+if (-not $CloudTargets) { $CloudTargets = @() }
 
 if (Test-Path -LiteralPath $destinationFile -PathType Leaf) {
     $candidate = (Get-Content -LiteralPath $destinationFile -Raw).Trim()
@@ -151,6 +260,7 @@ $config = [ordered]@{
     SubgrupoId = if ($SubgrupoId) { $SubgrupoId } else { $clientId }
     SubgrupoNome = if ($SubgrupoNome) { $SubgrupoNome } else { if ($NomeLoja) { $NomeLoja } else { $resolvedClientName } }
     Terminais = @()
+    CloudTargets = @($CloudTargets)
     CentralApiUrl = $CentralApiUrl.TrimEnd("/")
     CentralApiToken = $CentralApiToken
     InovaFarmaRoot = $inovaRoot
