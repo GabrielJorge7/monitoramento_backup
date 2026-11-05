@@ -291,6 +291,7 @@
             <input id="client-search" type="search" placeholder="Pesquisar por CNPJ, loja, responsável ou servidor" aria-describedby="filter-help">
             <span id="filter-help" class="sr-only">Pesquise por CNPJ, loja, responsável, servidor ou subgrupo.</span>
             <select id="status-filter" aria-label="Filtrar por status">
+                <option value="__none" selected disabled>Selecione o status</option>
                 <option value="">Todos os status</option>
                 <option value="ok">OK</option>
                 <option value="attention">Atenção necessária</option>
@@ -468,7 +469,7 @@
         function applyClientFilters() {
             const search = clientSearch.value.trim().toLocaleLowerCase("pt-BR");
             const selectedStatus = statusFilter.value;
-            if (!search && !selectedStatus && !showAllClients) {
+            if (!search && (selectedStatus === "__none" || !selectedStatus) && !showAllClients) {
                 renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
                 return;
             }
@@ -477,7 +478,7 @@
                 const searchable = [client.Cnpj, client.NomeLoja, client.ClienteNome, client.Responsavel, client.Servidor, client.ClienteId, client.SubgrupoId, client.SubgrupoNome].join(" ").toLocaleLowerCase("pt-BR");
                 const normalizedSearchable = searchable.replace(/[^\p{L}\p{N}]/gu, "");
                 const attentionStatuses = ["atrasado", "invalido", "sem_backup", "nao_verificado", "suspeito_tamanho"];
-                const statusMatches = !selectedStatus || (selectedStatus === "attention" ? attentionStatuses.includes(client.Status) : client.Status === selectedStatus);
+                const statusMatches = selectedStatus === "__none" || !selectedStatus || (selectedStatus === "attention" ? attentionStatuses.includes(client.Status) : client.Status === selectedStatus);
                 return (!search || searchable.includes(search) || normalizedSearchable.includes(normalizedSearch)) && statusMatches;
             });
             renderClients(filtered);
@@ -574,7 +575,7 @@
         searchClientButton.addEventListener("click", submitClientSearch);
         clearSearchButton.addEventListener("click", () => {
             clientSearch.value = "";
-            statusFilter.value = "";
+            statusFilter.value = "__none";
             showAllClients = false;
             overview.querySelectorAll(".card").forEach(card => card.classList.remove("is-selected"));
             renderClients([], "Digite CNPJ, nome da loja ou responsável e clique em Consultar.");
