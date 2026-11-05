@@ -387,6 +387,29 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (requestPath.startsWith("/api/users/") && request.method === "PUT") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      if (user.role !== "admin") { sendJson(response, 403, { erro: "Acesso restrito ao administrador." }); return; }
+      const userId = Number(requestPath.slice("/api/users/".length));
+      if (!Number.isInteger(userId)) throw new Error("Usuario invalido.");
+      const body = JSON.parse(await readBody(request));
+      const email = String(body.email || "").trim().toLowerCase();
+      const name = String(body.name || "").trim();
+      const role = body.role === "admin" ? "admin" : "collaborator";
+      if (!email || !name) throw new Error("Informe nome e e-mail.");
+      if (userId === user.id && role !== "admin") throw new Error("O administrador atual nao pode remover o proprio perfil.");
+      if (String(body.password || "") && String(body.password).length < 8) throw new Error("A nova senha precisa ter pelo menos 8 caracteres.");
+      if (String(body.password || "")) {
+        const passwordHash = await hashPassword(String(body.password));
+        await pool.query("UPDATE users SET name = $1, email = $2, role = $3, password_hash = $4 WHERE id = $5", [name, email, role, passwordHash, userId]);
+      } else {
+        await pool.query("UPDATE users SET name = $1, email = $2, role = $3 WHERE id = $4", [name, email, role, userId]);
+      }
+      sendJson(response, 200, { atualizado: true });
+      return;
+    }
+
     if (requestPath.startsWith("/api/users/") && request.method === "DELETE") {
       const user = await requireUser(request, response);
       if (!user) return;

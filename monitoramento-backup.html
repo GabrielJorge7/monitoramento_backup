@@ -229,6 +229,7 @@
         .login-card { padding: 34px; background: var(--panel); }
         .login-card h1 { font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
         .admin-panel { background: var(--panel); }
+        .edit-user-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
         .table-wrap { overflow: hidden auto; background: var(--panel); }
         td { color: var(--ink); }
         .filename { color: var(--accent-strong); }
@@ -282,6 +283,15 @@
                 <button type="submit"><span class="button-icon" aria-hidden="true">＋</span>Criar conta</button>
             </form>
             <div id="user-error" class="login-error"></div>
+            <form id="edit-user-form" class="admin-form edit-user-panel hidden">
+                <input id="edit-user-id" type="hidden">
+                <label for="edit-user-name">Editar nome<input id="edit-user-name" required></label>
+                <label for="edit-user-email">Editar e-mail<input id="edit-user-email" type="email" required></label>
+                <label for="edit-user-password">Nova senha<input id="edit-user-password" type="password" minlength="8" placeholder="Deixe vazio para manter"></label>
+                <label for="edit-user-role">Editar perfil<select id="edit-user-role"><option value="collaborator">Colaborador</option><option value="admin">Administrador</option></select></label>
+                <button type="submit"><span class="button-icon" aria-hidden="true">✓</span>Salvar edição</button>
+                <button id="cancel-edit-user" type="button">Cancelar</button>
+            </form>
             <div id="user-list"></div>
         </section>
         <section id="overview" class="overview" aria-live="polite"></section>
@@ -321,6 +331,12 @@
         const adminPanel = document.getElementById("admin-panel");
         const userForm = document.getElementById("user-form");
         const userError = document.getElementById("user-error");
+        const editUserForm = document.getElementById("edit-user-form");
+        const editUserId = document.getElementById("edit-user-id");
+        const editUserName = document.getElementById("edit-user-name");
+        const editUserEmail = document.getElementById("edit-user-email");
+        const editUserPassword = document.getElementById("edit-user-password");
+        const editUserRole = document.getElementById("edit-user-role");
         const userList = document.getElementById("user-list");
         const refreshButton = document.getElementById("refresh");
         const overview = document.getElementById("overview");
@@ -375,9 +391,19 @@
             const response = await fetch("/api/users", { cache: "no-store" });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.erro || "Nao foi possivel carregar usuarios.");
-            userList.innerHTML = `<table class="admin-users"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Estado</th><th>Ações</th></tr></thead><tbody>${payload.usuarios.map(user => `<tr><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.email)}</td><td>${escapeHtml(user.role)}</td><td>${user.active ? "Ativo" : "Desativado"}</td><td>${user.active ? `<button type="button" data-action="toggle" data-user-id="${user.id}">Desativar</button>` : `<button type="button" data-action="toggle" data-user-id="${user.id}">Ativar</button>`} <button type="button" data-action="delete" data-user-id="${user.id}">Excluir</button></td></tr>`).join("")}</tbody></table>`;
+            userList.innerHTML = `<table class="admin-users"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Estado</th><th>Ações</th></tr></thead><tbody>${payload.usuarios.map(user => `<tr><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.email)}</td><td>${escapeHtml(user.role)}</td><td>${user.active ? "Ativo" : "Desativado"}</td><td><button type="button" data-action="edit" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" data-user-email="${escapeHtml(user.email)}" data-user-role="${escapeHtml(user.role)}">Editar</button> ${user.active ? `<button type="button" data-action="toggle" data-user-id="${user.id}">Desativar</button>` : `<button type="button" data-action="toggle" data-user-id="${user.id}">Ativar</button>`} <button type="button" data-action="delete" data-user-id="${user.id}">Excluir</button></td></tr>`).join("")}</tbody></table>`;
             userList.querySelectorAll("button[data-user-id]").forEach(button => button.addEventListener("click", async () => {
                 const action = button.dataset.action;
+                if (action === "edit") {
+                    editUserId.value = button.dataset.userId;
+                    editUserName.value = button.dataset.userName;
+                    editUserEmail.value = button.dataset.userEmail;
+                    editUserRole.value = button.dataset.userRole;
+                    editUserPassword.value = "";
+                    editUserForm.classList.remove("hidden");
+                    editUserName.focus();
+                    return;
+                }
                 if (action === "delete" && !window.confirm("Excluir esta conta permanentemente?")) return;
                 const response = await fetch(`/api/users/${button.dataset.userId}`, { method: action === "delete" ? "DELETE" : "PATCH" });
                 const payload = await response.json();
@@ -559,6 +585,19 @@
                 loadStatus();
             } catch (error) { loginError.textContent = error.message; }
         });
+        editUserForm.addEventListener("submit", async event => {
+            event.preventDefault();
+            userError.textContent = "";
+            try {
+                const response = await fetch(`/api/users/${encodeURIComponent(editUserId.value)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editUserName.value, email: editUserEmail.value, password: editUserPassword.value, role: editUserRole.value }) });
+                const payload = await response.json();
+                if (!response.ok) throw new Error(payload.erro || "Falha ao editar conta.");
+                editUserForm.reset();
+                editUserForm.classList.add("hidden");
+                loadUsers();
+            } catch (error) { userError.textContent = error.message; }
+        });
+        document.getElementById("cancel-edit-user").addEventListener("click", () => { editUserForm.reset(); editUserForm.classList.add("hidden"); });
         document.getElementById("logout").addEventListener("click", async () => { await fetch("/api/auth/logout", { method: "POST" }); showLogin(); });
         adminToggle.addEventListener("click", () => { adminPanel.classList.toggle("hidden"); if (!adminPanel.classList.contains("hidden")) loadUsers(); });
         userForm.addEventListener("submit", async event => {
