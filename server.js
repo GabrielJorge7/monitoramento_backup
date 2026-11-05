@@ -6,7 +6,9 @@ const crypto = require("node:crypto");
 
 const port = Number(process.env.PORT || 8787);
 const token = process.env.MONITOR_TOKEN || "";
+const requireMonitorToken = process.env.REQUIRE_MONITOR_TOKEN !== "false";
 const offlineMinutes = Number(process.env.OFFLINE_MINUTES || 90);
+const maxBodyBytes = Number(process.env.MAX_BODY_BYTES || 5 * 1024 * 1024);
 const adminEmail = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const dashboardPath = path.join(__dirname, "monitoramento-backup.html");
@@ -14,11 +16,15 @@ const localStoragePath = path.join(__dirname, "clientes");
 const pool = process.env.DATABASE_URL
   ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   : null;
+const loginAttempts = new Map();
 
 function send(response, statusCode, contentType, body) {
   response.writeHead(statusCode, {
     "Content-Type": contentType,
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
   });
   response.end(body);
 }
@@ -30,10 +36,42 @@ function sendJson(response, statusCode, value) {
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = "";
-    request.on("data", chunk => { body += chunk; });
+    let size = 0;
+    request.on("data", chunk => {
+      size += chunk.length;
+      if (size > maxBodyBytes) {
+        reject(Object.assign(new Error("Corpo da requisicao excede o limite permitido."), { statusCode: 413 }));
+        request.destroy();
+        return;
+      }
+      body += chunk;
+    });
     request.on("end", () => resolve(body));
     request.on("error", reject);
   });
+}
+
+function tokensMatch(expected, received) {
+  const expectedBuffer = Buffer.from(String(expected));
+  const receivedBuffer = Buffer.from(String(received || ""));
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function clientIp(request) {
+  return String(request.headers["x-forwarded-for"] || request.socket.remoteAddress || "unknown").split(",")[0].trim();
+}
+
+function loginAllowed(request) {
+  const now = Date.now();
+  const key = clientIp(request);
+  const recent = (loginAttempts.get(key) || []).filter(timestamp => now - timestamp < 15 * 60 * 1000);
+  if (recent.length >= 10) {
+    loginAttempts.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  loginAttempts.set(key, recent);
+  return true;
 }
 
 function parseCookies(request) {
@@ -256,6 +294,7 @@ const server = http.createServer(async (request, response) => {
 
     if (requestPath === "/api/auth/login" && request.method === "POST") {
       if (!pool) { sendJson(response, 503, { erro: "Configure DATABASE_URL para habilitar o login." }); return; }
+      if (!loginAllowed(request)) { sendJson(response, 429, { erro: "Muitas tentativas de login. Tente novamente mais tarde." }); return; }
       const body = JSON.parse(await readBody(request));
       const result = await pool.query("SELECT * FROM users WHERE email = $1 AND active = TRUE", [String(body.email || "").trim().toLowerCase()]);
       const user = result.rows[0];
@@ -284,7 +323,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (requestPath === "/api/report" && request.method === "POST") {
-      if (token && request.headers["x-monitor-token"] !== token) {
+      if (requireMonitorToken && (!token || !tokensMatch(token, request.headers["x-monitor-token"]))) {
         sendJson(response, 401, { erro: "Token invalido." });
         return;
       }
@@ -362,9 +401,13 @@ const server = http.createServer(async (request, response) => {
 
     send(response, 404, "text/plain; charset=utf-8", "Nao encontrado");
   } catch (error) {
-    sendJson(response, 500, { erro: error.message });
+    sendJson(response, Number(error.statusCode) || 500, { erro: error.message });
   }
 });
+
+if (requireMonitorToken && !token) {
+  console.warn("MONITOR_TOKEN nao configurado; relatorios serao recusados.");
+}
 
 initializeDatabase()
   .then(() => server.listen(port, "0.0.0.0", () => console.log(`Central ouvindo na porta ${port}`)))
