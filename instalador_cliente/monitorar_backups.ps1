@@ -159,13 +159,13 @@ function Get-CloudReplicationResult([System.IO.FileInfo]$source, [object]$config
         try {
             $cloudRoot = [string]$cloud.LocalPath
             if (-not (Test-Path -LiteralPath $cloudRoot -PathType Container)) {
-                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Pasta sincronizada nao encontrada: $cloudRoot" }
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "pasta_indisponivel"; Detalhe = "Pasta sincronizada nao encontrada: $cloudRoot" }
                 continue
             }
 
             $target = Join-Path $cloudRoot $source.Name
             if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
-                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente"; Detalhe = "Arquivo nao encontrado na nuvem" }
+                $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente_local"; Detalhe = "Arquivo nao encontrado na pasta sincronizada; o upload pode estar pendente" }
             } else {
                 $targetFile = Get-Item -LiteralPath $target
                 if ($targetFile.Length -ne $source.Length) {
@@ -233,6 +233,14 @@ function Get-SizeComparison([object[]]$sourceRecords) {
 }
 
 $config = Get-Config
+$reportDirectory = if ($config.ReportDirectory) { $config.ReportDirectory } else { $defaultReportDirectory }
+New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
+$logPath = Join-Path $reportDirectory "monitoramento.log"
+function Write-MonitorLog([string]$message, [string]$level = "INFO") {
+    $line = "{0} [{1}] {2}" -f (Get-Date).ToString("o"), $level, $message
+    Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+}
+Write-MonitorLog "Inicio da verificacao."
 $backupRoots = @(Get-BackupRoots $config)
 $serviceRootPath = if ($config.ServiceBackupRoot) { [string]$config.ServiceBackupRoot } else { Join-Path $config.InovaFarmaRoot "BACKUP" }
 $serviceRootAvailable = Test-Path -LiteralPath $serviceRootPath -PathType Container
@@ -300,10 +308,9 @@ $report = [PSCustomObject]@{
     ArquivosLimitados = $records.Count -gt $reportRecords.Count
 }
 
-$reportDirectory = if ($config.ReportDirectory) { $config.ReportDirectory } else { $defaultReportDirectory }
-New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
 $reportJson = $report | ConvertTo-Json -Depth 8
 $reportJson | Set-Content -LiteralPath (Join-Path $reportDirectory "ultimo-relatorio.json") -Encoding UTF8
+Write-MonitorLog "Relatorio local salvo. Status=$overallStatus; Arquivos=$($records.Count); Enviados=$($reportRecords.Count)."
 
 if ($config.CentralApiUrl) {
     try {
@@ -312,11 +319,14 @@ if ($config.CentralApiUrl) {
             $headers["X-Monitor-Token"] = $config.CentralApiToken
         }
         Invoke-RestMethod -Uri $config.CentralApiUrl -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($reportJson)) -ContentType "application/json; charset=utf-8" -Headers $headers -TimeoutSec 20 | Out-Null
+        Write-MonitorLog "Relatorio enviado ao central: $($config.CentralApiUrl)"
         Write-Output "Relatorio enviado ao central: $($config.CentralApiUrl)"
     } catch {
+        Write-MonitorLog "Falha ao enviar relatorio ao central: $($_.Exception.Message)" "ERROR"
         Write-Warning "Nao foi possivel enviar o relatorio ao central: $($_.Exception.Message)"
     }
 } else {
+    Write-MonitorLog "CentralApiUrl nao configurada; relatorio mantido localmente." "WARN"
     Write-Warning "CentralApiUrl nao configurada; o relatorio foi salvo apenas neste computador."
 }
 

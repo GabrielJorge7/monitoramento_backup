@@ -86,6 +86,12 @@ A mensagem esperada inclui:
 Relatorio enviado ao central
 ```
 
+O monitor tambem grava diagnosticos em:
+
+`C:\ProgramData\InovaFarma\MonitoramentoBackup\monitoramento.log`
+
+Na verificacao de nuvem por pasta sincronizada, `Pasta indisponivel` indica que o caminho nao foi encontrado e `Ausente localmente` indica que a pasta existe, mas o arquivo ainda nao apareceu nela.
+
 Para conferir a tarefa:
 
 ```powershell

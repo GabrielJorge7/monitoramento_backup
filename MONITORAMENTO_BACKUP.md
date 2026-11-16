@@ -40,6 +40,10 @@ O campo `MaxAgeHours` define quando o estado passa para `atrasado`. O valor atua
 
 O campo `MaxReportFiles` limita quantos arquivos mais recentes sao enviados ao central. O monitor continua analisando todos os arquivos localmente para calcular o status; apenas a lista exibida no detalhe pode ser reduzida. O padrao e 200.
 
+O monitor tambem grava um log local em `C:\ProgramData\InovaFarma\MonitoramentoBackup\monitoramento.log`. Ele registra inicio da verificacao, salvamento do relatorio, envio ao central e falhas de comunicacao.
+
+Na verificacao por pasta sincronizada, `Pasta indisponivel` significa que o caminho configurado nao existe ou nao esta acessivel; `Ausente localmente` significa que a pasta existe, mas o arquivo ainda nao apareceu nela. Esses estados nao confirmam diretamente o upload na nuvem.
+
 ### Backup manual opcional
 
 O monitor sempre verifica os backups do serviço em `C:\InovaFarma\BACKUP`. Para incluir uma pasta onde os backups manuais são salvos, adicione caminhos em `ManualBackupRoots`:
