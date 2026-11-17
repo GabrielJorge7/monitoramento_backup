@@ -26,6 +26,21 @@ Mantenha os tres arquivos na mesma pasta.
 
 2. Abra o PowerShell como Administrador.
 
+   O instalador também solicita elevação UAC automaticamente quando encontrar a opção para criar tarefas agendadas. É obrigatório aceitar essa elevação.
+
+   Se aparecer `Acesso negado`, confirme que:
+
+   - O PowerShell foi aberto como Administrador.
+   - A elevação UAC foi aceita.
+   - O usuário possui permissão para usar `Register-ScheduledTask`.
+   - O Agendador de Tarefas do Windows está ativo.
+
+   Teste a elevação manualmente antes da instalação:
+
+   ```powershell
+   Start-Process powershell.exe -Verb RunAs
+   ```
+
 3. Entre na pasta:
 
    ```powershell

@@ -221,6 +221,35 @@ function Show-SetupForm {
     return $true
 }
 
+function Test-IsAdministrator {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [System.Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Restart-InstallerElevated {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    if (-not $scriptPath) { $scriptPath = (Join-Path $scriptRoot "instalar_monitor_cliente.ps1") }
+
+    $argumentList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $scriptPath))
+    if ($Interface -or [string]::IsNullOrWhiteSpace($CentralApiUrl)) { $argumentList += "-Interface" }
+    if ($CentralApiUrl) { $argumentList += "-CentralApiUrl"; $argumentList += ('"{0}"' -f $CentralApiUrl) }
+    if ($CentralApiToken) { $argumentList += "-CentralApiToken"; $argumentList += ('"{0}"' -f $CentralApiToken) }
+    if ($Cnpj) { $argumentList += "-Cnpj"; $argumentList += ('"{0}"' -f $Cnpj) }
+    if ($NomeLoja) { $argumentList += "-NomeLoja"; $argumentList += ('"{0}"' -f $NomeLoja) }
+    if ($Responsavel) { $argumentList += "-Responsavel"; $argumentList += ('"{0}"' -f $Responsavel) }
+    if ($SubgrupoId) { $argumentList += "-SubgrupoId"; $argumentList += ('"{0}"' -f $SubgrupoId) }
+    if ($SubgrupoNome) { $argumentList += "-SubgrupoNome"; $argumentList += ('"{0}"' -f $SubgrupoNome) }
+    $argumentList += "-IntervaloMinutos"; $argumentList += [string]$IntervaloMinutos
+
+    Start-Process -FilePath (Get-Command powershell.exe).Source -ArgumentList $argumentList -Verb RunAs -Wait | Out-Null
+    exit
+}
+
+if (-not $NaoCriarTarefa -and -not (Test-IsAdministrator)) {
+    Restart-InstallerElevated
+}
+
 if ($Interface -or [string]::IsNullOrWhiteSpace($CentralApiUrl)) {
     if (-not (Show-SetupForm)) { exit 0 }
 }
@@ -283,20 +312,30 @@ Write-Output "Destino detectado: $(if ($backupRoot) { $backupRoot } else { 'sera
 Write-Output "Central: $CentralApiUrl"
 
 if (-not $NaoCriarTarefa) {
+    if (-not (Test-IsAdministrator)) {
+        throw "Acesso negado: execute o instalador em um PowerShell como Administrador ou aceite a elevação UAC."
+    }
+
     $monitorTaskName = "Monitoramento Backup InovaFarma"
     $monitorTaskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$monitorScript`""
     $monitorAction = New-ScheduledTaskAction -Execute $powershellPath -Argument $monitorTaskArguments
     $monitorTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervaloMinutos)
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $monitorTaskName -Action $monitorAction -Trigger $monitorTrigger -Principal $principal -Force | Out-Null
 
-    $updateTaskName = "Atualizar Configuracao Monitoramento InovaFarma"
-    $updateTaskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`""
-    $updateAction = New-ScheduledTaskAction -Execute $powershellPath -Argument $updateTaskArguments
-    $updateTrigger = New-ScheduledTaskTrigger -AtStartup
-    Register-ScheduledTask -TaskName $updateTaskName -Action $updateAction -Trigger $updateTrigger -Principal $principal -Force | Out-Null
-    Write-Output "Tarefa agendada: $monitorTaskName (a cada $IntervaloMinutos minuto(s))"
-    Write-Output "Tarefa agendada: $updateTaskName (ao iniciar; no maximo uma vez por dia)"
+    try {
+        Register-ScheduledTask -TaskName $monitorTaskName -Action $monitorAction -Trigger $monitorTrigger -Principal $principal -Force | Out-Null
+
+        $updateTaskName = "Atualizar Configuracao Monitoramento InovaFarma"
+        $updateTaskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`""
+        $updateAction = New-ScheduledTaskAction -Execute $powershellPath -Argument $updateTaskArguments
+        $updateTrigger = New-ScheduledTaskTrigger -AtStartup
+        Register-ScheduledTask -TaskName $updateTaskName -Action $updateAction -Trigger $updateTrigger -Principal $principal -Force | Out-Null
+
+        Write-Output "Tarefa agendada: $monitorTaskName (a cada $IntervaloMinutos minuto(s))"
+        Write-Output "Tarefa agendada: $updateTaskName (ao iniciar; no maximo uma vez por dia)"
+    } catch {
+        throw "Nao foi possivel criar as tarefas agendadas. Execute como Administrador e confirme a elevacao UAC. Detalhe: $($_.Exception.Message)"
+    }
 }
 
 & $powershellPath -NoProfile -ExecutionPolicy Bypass -File $monitorScript
