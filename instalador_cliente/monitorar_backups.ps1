@@ -145,7 +145,13 @@ function Get-ReplicationResult([System.IO.FileInfo]$source, [object]$config) {
 }
 
 function Get-CloudTargets([object]$config) {
-    return @($config.CloudTargets | Where-Object { $_ -and $_.Provider -and $_.LocalPath })
+    return @($config.CloudTargets | Where-Object { $_ } | ForEach-Object {
+        if ($_ -is [string]) {
+            [PSCustomObject]@{ Id = [string]$_; Nome = "Pasta sincronizada"; Provider = "Pasta sincronizada"; LocalPath = [string]$_ }
+        } elseif ($_.LocalPath) {
+            [PSCustomObject]@{ Id = [string]$_.Id; Nome = [string]$_.Nome; Provider = [string]$_.Provider; LocalPath = [string]$_.LocalPath }
+        }
+    })
 }
 
 function Get-CloudReplicationResult([System.IO.FileInfo]$source, [object]$config) {
@@ -163,11 +169,12 @@ function Get-CloudReplicationResult([System.IO.FileInfo]$source, [object]$config
                 continue
             }
 
-            $target = Join-Path $cloudRoot $source.Name
-            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            $matchingFiles = @(Get-ChildItem -LiteralPath $cloudRoot -File -Force -Recurse -ErrorAction Stop | Where-Object Name -eq $source.Name)
+            $targetFile = $matchingFiles | Where-Object Length -eq $source.Length | Select-Object -First 1
+            if (-not $targetFile -and $matchingFiles.Count -eq 0) {
                 $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "ausente_local"; Detalhe = "Arquivo nao encontrado na pasta sincronizada; o upload pode estar pendente" }
             } else {
-                $targetFile = Get-Item -LiteralPath $target
+                if (-not $targetFile) { $targetFile = $matchingFiles[0] }
                 if ($targetFile.Length -ne $source.Length) {
                     $results += @{ CloudId = [string]$cloud.Id; CloudNome = [string]$cloud.Nome; Provider = [string]$cloud.Provider; Status = "incompleto"; Detalhe = "Tamanho diferente: nuvem=$($targetFile.Length), origem=$($source.Length)" }
                 } else {
